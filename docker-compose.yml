@@ -1,0 +1,51 @@
+# pbx-node: một cụm tổng đài = Asterisk + PostgreSQL (Realtime DB).
+# Không chạy code nghiệp vụ. PBX Gateway (repo riêng) kết nối vào đây qua DB 5432, AMI 5038, ARI 8088.
+services:
+  db:
+    build: ./db                  # postgres:16 + tzdata-legacy (xem db/Dockerfile)
+    image: pbx-db:16
+    container_name: pbx-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${DB_NAME}
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      GW_DB_USER: ${GW_DB_USER}           # user riêng cho PBX Gateway (db/init/03-gateway-user.sh)
+      GW_DB_PASSWORD: ${GW_DB_PASSWORD}
+      TZ: ${TZ}
+    volumes:
+      - ./db/init:/docker-entrypoint-initdb.d:ro   # chỉ chạy ở lần khởi động đầu tiên
+      - pgdata:/var/lib/postgresql/data
+    ports:
+      # Gateway ghi máy lẻ/group, đọc CDR. Firewall chỉ cho IP Gateway vào cổng này.
+      - "${ADMIN_BIND:-0.0.0.0}:5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER} -d ${DB_NAME}"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  asterisk:
+    build: ./asterisk
+    image: pbx-asterisk:20
+    container_name: pbx-asterisk
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    env_file: .env
+    ports:
+      - "5060:5060/udp"                                           # SIP: softphone, Media AI, nhà mạng
+      - "${RTP_START}-${RTP_END}:${RTP_START}-${RTP_END}/udp"     # RTP: âm thanh
+      - "8089:8089"                                               # WSS: Softphone SDK trong trình duyệt
+      - "${ADMIN_BIND:-0.0.0.0}:5038:5038"                        # AMI: chỉ cho Gateway
+      - "${ADMIN_BIND:-0.0.0.0}:8088:8088"                        # ARI: chỉ cho Gateway
+    volumes:
+      - ./asterisk/conf:/opt/pbx-conf:ro   # sửa cấu hình xong chỉ cần: docker compose restart asterisk
+      - astkeys:/etc/asterisk/keys         # chứng chỉ TLS cho WSS (tự tạo lần đầu)
+      - astlogs:/var/log/asterisk
+
+volumes:
+  pgdata:
+  astkeys:
+  astlogs:

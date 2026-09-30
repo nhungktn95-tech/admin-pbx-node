@@ -1,0 +1,4 @@
+{
+  // Mọi file trong project lưu xuống dòng LF (Linux), tránh lỗi khi chạy trên Ubuntu/Docker
+  "files.eol": "\n"
+}

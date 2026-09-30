@@ -1,0 +1,2 @@
+# Nếu sau này dùng git: luôn giữ LF, kể cả khi core.autocrlf=true trên Windows
+* text=auto eol=lf

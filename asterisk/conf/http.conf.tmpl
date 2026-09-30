@@ -1,0 +1,15 @@
+; ============================================================
+; HTTP server của Asterisk
+;   8088 (http)  : ARI - chỉ cho Gateway
+;   8089 (https) : WSS /ws - Softphone SDK trong trình duyệt đăng nhập qua đây
+; ============================================================
+[general]
+enabled = yes
+bindaddr = 0.0.0.0
+bindport = 8088
+servername = pbx-node
+
+tlsenable = yes
+tlsbindaddr = 0.0.0.0:8089
+tlscertfile = /etc/asterisk/keys/asterisk.crt
+tlsprivatekey = /etc/asterisk/keys/asterisk.key

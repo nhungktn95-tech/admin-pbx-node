@@ -1,0 +1,8 @@
+; Asterisk dùng kết nối ODBC tên "asterisk" (khai báo trong /etc/odbc.ini)
+[asterisk]
+enabled         => yes
+dsn             => asterisk
+username        => ${DB_USER}
+password        => ${DB_PASSWORD}
+pre-connect     => yes
+max_connections => 20

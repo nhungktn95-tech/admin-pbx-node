@@ -1,0 +1,11 @@
+[general]
+rtpstart = ${RTP_START}
+rtpend   = ${RTP_END}
+; Bật ICE cho máy lẻ WebRTC (Softphone SDK). Mạng LAN không cần STUN/TURN.
+icesupport = yes
+
+; Máy web (WebRTC): chỉ gửi ICE candidate = HOST_IP, KHÔNG gửi IP nội bộ Docker (172.x).
+; Nếu gửi 172.x, trình duyệt trên máy có card mạng ảo (Docker Desktop, WSL, VirtualBox) chọn nhầm đường
+; -> Asterisk không nhận được tiếng từ trình duyệt đó (pjsip show channelstats: Receive = 0).
+[ice_host_candidates]
+${CONTAINER_IP} => ${HOST_IP}

@@ -1,0 +1,12 @@
+; ARI (REST + WebSocket sự kiện) - chỉ PBX Gateway dùng, giai đoạn 2
+[general]
+enabled = yes
+pretty = no
+allowed_origins =
+
+[${ARI_USER}]
+type = user
+read_only = no
+; Mật khẩu đã băm crypt SHA-512 (entrypoint.sh tạo từ ARI_PASSWORD trong .env)
+password = ${ARI_PASSWORD_HASH}
+password_format = crypt

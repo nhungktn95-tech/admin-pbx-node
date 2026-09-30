@@ -1,0 +1,32 @@
+; Phần tĩnh của PJSIP: chỉ có transport. Máy lẻ nằm trong database, KHÔNG khai báo ở đây.
+[global]
+type = global
+user_agent = pbx-node
+; Realm dùng để tính md5_cred trong bảng ps_auths. ĐỔI realm = mọi máy lẻ phải tính lại md5_cred.
+default_realm = asterisk
+
+; Softphone cài máy, Media AI, nhà mạng: SIP qua UDP 5060
+[transport-udp]
+type = transport
+protocol = udp
+bind = 0.0.0.0:5060
+; Asterisk chạy trong Docker: báo cho softphone biết IP thật của máy chủ
+external_media_address     = ${HOST_IP}
+external_signaling_address = ${HOST_IP}
+local_net = 127.0.0.1/32
+; Mạng Docker: IP của chính Asterisk (172.x) phải nằm trong local_net thì Asterisk mới
+; thay địa chỉ âm thanh trong SDP bằng external_media_address. Thiếu dòng này -> c=IN IP4 172.x, mất tiếng.
+local_net = 172.16.0.0/12
+
+; Softphone SDK trong trình duyệt: SIP qua WebSocket bảo mật (WSS).
+; Cổng thật là 8089 khai báo trong http.conf; bind ở đây chỉ để PJSIP nhận transport.
+[transport-wss]
+type = transport
+protocol = wss
+bind = 0.0.0.0
+external_media_address     = ${HOST_IP}
+external_signaling_address = ${HOST_IP}
+local_net = 127.0.0.1/32
+; Mạng Docker: IP của chính Asterisk (172.x) phải nằm trong local_net thì Asterisk mới
+; thay địa chỉ âm thanh trong SDP bằng external_media_address. Thiếu dòng này -> c=IN IP4 172.x, mất tiếng.
+local_net = 172.16.0.0/12
