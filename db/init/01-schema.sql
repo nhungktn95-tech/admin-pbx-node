@@ -95,7 +95,8 @@ CREATE TABLE cdr (
     userfield    VARCHAR(255),
     linkedid     VARCHAR(150),
     peeraccount  VARCHAR(40),
-    sequence     INTEGER
+    sequence     INTEGER,
+    recordingfile VARCHAR(255)              -- tên file ghi âm (không đuôi .wav), tải qua ARI /recordings/stored
 );
 CREATE INDEX cdr_calldate_idx ON cdr (calldate);
 CREATE INDEX cdr_linkedid_idx ON cdr (linkedid);

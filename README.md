@@ -32,7 +32,7 @@ pbx-node/
 │     ├─ manager.conf.tmpl     # AMI 5038 cho Gateway
 │     ├─ http.conf.tmpl, ari.conf.tmpl  # ARI 8088, WSS 8089
 │     ├─ rtp.conf.tmpl         # dải cổng âm thanh
-│     ├─ extensions.conf       # DIALPLAN: gọi 1xx/2xx, gọi group 6xx, *43 thử âm thanh
+│     ├─ extensions.conf       # DIALPLAN: gọi 1xx/2xx, gọi group 6xx, *43 thử âm thanh, ghi âm
 │     ├─ queues.conf           # group đọc từ DB
 │     ├─ cdr.conf, cdr_adaptive_odbc.conf   # ghi lịch sử cuộc gọi vào bảng cdr
 ├─ db/init/
@@ -201,6 +201,50 @@ Ví dụ kết quả thật khi chạy thử project này:
 
 Có thể dùng **DBeaver** kết nối `localhost:5432`, database `asterisk`, user/pass trong `.env` để xem trực quan.
 
+Các dòng cùng `linkedid` thuộc cùng một cuộc gọi. Gồm cả cuộc gọi không ai nghe (`disposition = NO ANSWER`, `BUSY`...).
+
+---
+
+## Ghi âm cuộc gọi
+
+Mặc định mọi cuộc gọi **đã nối máy** đều được ghi âm (gọi máy lẻ 1xx/2xx và gọi group 6xx). Tắt bằng `RECORD_CALLS=no` trong `.env` rồi chạy `docker compose up -d`.
+
+| | |
+| --- | --- |
+| Nơi lưu | Trong container: `/var/spool/asterisk/recording/` (volume `recordings`). Trên máy chủ: `docker volume inspect pbx-node_recordings` → `Mountpoint` |
+| Tên file | `<ngày-giờ>_<số gọi>_<số bị gọi>_<uniqueid>.wav`, ví dụ `20261002-153000_101_102_1759393800.12.wav` |
+| Liên kết với lịch sử | Cột `cdr.recordingfile` = tên file (không có `.wav`) |
+| Định dạng, dung lượng | WAV 8 kHz, khoảng 1 MB/phút. **Không tự xóa**: theo dõi ổ đĩa (`df -h`) |
+
+Chỉ ghi khi hai bên đã nối máy: cuộc gọi không ai nghe thì không có file, `recordingfile` để trống.
+
+Một cuộc gọi có nhiều dòng `cdr` (cùng `linkedid`). Tên file nằm ở dòng của **bên gọi** (`lastapp` = `Dial` hoặc `Queue`).
+
+**Gateway lấy file ghi âm qua ARI** (không cần mở thêm cổng):
+
+```bash
+AUTH="$ARI_USER:$ARI_PASSWORD"; ARI="http://$HOST_IP:8088/ari"
+curl -s -u "$AUTH" "$ARI/recordings/stored"                                   # danh sách
+curl -s -u "$AUTH" "$ARI/recordings/stored/<recordingfile>/file" -o goi.wav   # tải về
+curl -s -u "$AUTH" -X DELETE "$ARI/recordings/stored/<recordingfile>"         # xóa
+```
+
+**Nghe thử trên máy chủ:**
+
+```bash
+docker compose exec asterisk ls -lh /var/spool/asterisk/recording/
+docker compose cp asterisk:/var/spool/asterisk/recording/<tên>.wav .
+```
+
+**DB tạo từ trước khi có tính năng ghi âm** thì thêm cột rồi khởi động lại Asterisk:
+
+```bash
+docker compose exec -T db psql -U asterisk -d asterisk < sql/ghi-am-nang-cap-db-cu.sql
+docker compose up -d --build
+```
+
+> ⚠️ `docker compose down -v` xóa cả volume `recordings`, tức là **mất toàn bộ file ghi âm**.
+
 ---
 
 ## Lệnh hay dùng
@@ -210,7 +254,7 @@ Có thể dùng **DBeaver** kết nối `localhost:5432`, database `asterisk`, u
 | Khởi động / dừng | `docker compose up -d` / `docker compose down` |
 | Sửa file trong `asterisk/conf/` xong | `docker compose restart asterisk` |
 | Sửa riêng dialplan, không restart | trong màn hình lệnh Asterisk: `dialplan reload` |
-| Xóa sạch dữ liệu, chạy lại seed từ đầu | `docker compose down -v && docker compose up -d` |
+| Xóa sạch dữ liệu (cả file ghi âm), chạy lại seed từ đầu | `docker compose down -v && docker compose up -d` |
 | Máy lẻ đang đăng nhập | `pjsip show contacts` |
 | Cuộc gọi đang diễn ra | `core show channels` |
 

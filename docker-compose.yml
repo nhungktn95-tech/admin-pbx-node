@@ -44,8 +44,10 @@ services:
       - ./asterisk/conf:/opt/pbx-conf:ro   # sửa cấu hình xong chỉ cần: docker compose restart asterisk
       - astkeys:/etc/asterisk/keys         # chứng chỉ TLS cho WSS (tự tạo lần đầu)
       - astlogs:/var/log/asterisk
+      - recordings:/var/spool/asterisk/recording   # file ghi âm cuộc gọi (KHÔNG tự xóa, theo dõi dung lượng ổ đĩa)
 
 volumes:
   pgdata:
   astkeys:
   astlogs:
+  recordings:

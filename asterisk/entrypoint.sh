@@ -39,6 +39,17 @@ if [ ! -f "$KEYS/asterisk.crt" ] || [ ! -f "$KEYS/asterisk.key" ]; then
 fi
 chown -R asterisk:asterisk "$KEYS" 2>/dev/null || true
 
+# Múi giờ: Asterisk đọc /etc/localtime (không đọc biến TZ). Thiếu bước này thì cdr.calldate
+# và tên file ghi âm theo giờ UTC (lệch 7 tiếng).
+if [ -n "$TZ" ] && [ -f "/usr/share/zoneinfo/$TZ" ]; then
+  ln -sf "/usr/share/zoneinfo/$TZ" /etc/localtime
+  echo "$TZ" > /etc/timezone
+fi
+
+# Thư mục ghi âm cuộc gọi (volume recordings) - cũng là thư mục ghi âm của ARI
+mkdir -p /var/spool/asterisk/recording
+chown asterisk:asterisk /var/spool/asterisk/recording 2>/dev/null || true
+
 # 3. Chờ PostgreSQL sẵn sàng
 echo "Đang chờ database ${DB_HOST}:${DB_PORT}..."
 until nc -z "$DB_HOST" "$DB_PORT"; do sleep 1; done

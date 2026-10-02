@@ -89,6 +89,16 @@ Windows không giữ quyền Linux (rwx) và dễ sinh CRLF. Hai lỗi đã gặ
 - [ ] **Không đổi `default_realm`** trong `pjsip.conf` — đổi là mọi `md5_cred` phải tính lại.
 - [ ] Nhập mật khẩu: **trim khoảng trắng**. Đã gặp: dán `lab101pass␣` → `Failed to authenticate` (log chỉ thấy 401, DB không nhìn ra vì đã băm).
 - [ ] DBeaver: Host = **IP máy chủ** (không phải `localhost` — đó là Postgres trên máy Windows), Database = `asterisk`.
+- [ ] Thêm cột vào `cdr` (ví dụ `recordingfile`) xong phải `docker compose restart asterisk`: `cdr_adaptive_odbc` chỉ đọc danh sách cột lúc khởi động.
+  → *Thiếu bước này: cột mới luôn trống, log không báo lỗi.*
+
+### Ghi âm cuộc gọi
+
+- [ ] File ghi âm nằm trong volume `recordings` và **không tự xóa** (WAV ~1 MB/phút). Theo dõi `df -h`; cần thì Gateway xóa qua ARI `DELETE /ari/recordings/stored/<tên>`.
+- [ ] `docker compose down -v` **xóa luôn toàn bộ ghi âm**. Sao lưu trước: `docker compose cp asterisk:/var/spool/asterisk/recording ./backup-ghi-am`.
+- [ ] Asterisk lấy múi giờ từ `/etc/localtime`, **không** từ biến `TZ` → `entrypoint.sh` tạo link theo `TZ`.
+  → *Thiếu: `cdr.calldate` và tên file ghi âm lệch 7 tiếng (giờ UTC).*
+- [ ] Ghi âm cuộc gọi của người dân: phải có lời thông báo "cuộc gọi được ghi âm" khi làm IVR (bước 4).
 
 ## 6. Asterisk trong Docker (NAT)
 

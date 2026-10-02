@@ -38,6 +38,7 @@ Thoại **không** đi qua Gateway. Cần một cửa cho cả cuộc gọi thì
 | Mật khẩu máy lẻ | Không lưu mật khẩu gốc. `ps_auths`: `auth_type='md5'`, `realm='asterisk'`, `md5_cred=md5(username:asterisk:mật_khẩu)`, `password=NULL` (CHECK constraint bắt buộc). Gateway tự tính md5_cred khi tạo/đổi mật khẩu. Đổi `default_realm` = phải tính lại mọi md5_cred |
 | Mật khẩu ARI | `ari.conf` lưu crypt SHA-512 (entrypoint băm từ `ARI_PASSWORD`). AMI buộc lưu dạng gốc (giới hạn của Asterisk) |
 | Lịch sử | Bảng `cdr`, các dòng cùng `linkedid` là 1 cuộc gọi |
+| Ghi âm | Mọi cuộc gọi đã nối máy (`MixMonitor` tùy chọn `b`, context `[sub-record]`), tắt bằng `RECORD_CALLS=no`. File WAV ở `/var/spool/asterisk/recording` (volume `recordings`) = thư mục ghi âm của ARI → Gateway liệt kê/tải/xóa qua ARI `/recordings/stored`. Tên file (không đuôi) lưu ở `cdr.recordingfile`. **Không tự xóa** file |
 
 ## 3. Trạng thái
 
