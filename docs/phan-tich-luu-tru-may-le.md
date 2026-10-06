@@ -43,6 +43,7 @@ Máy lẻ lưu trong SQLite nội bộ của Asterisk, Gateway ghi qua ARI.
 
 - **Ưu:** Gateway chỉ cần AMI + ARI, không biết DB. Đã làm xong và thử trên Docker cục bộ.
 - **Nhược:** không có SQL để quản lý; mỗi cụm một file riêng; sao lưu phải tự lo (volume `astdb`); không có nhân bản; không có phân quyền hay ràng buộc. Queue vẫn không quản lý được (F8). `pjsip show endpoints` hiện mỗi máy hai lần (chưa rõ AMI/ARI có bị trùng không).
+- **Bổ sung cho phần queue:** group lưu trong `queues.conf`, Gateway sửa qua AMI `UpdateConfig` + `QueueReload` (chưa thử). Xem [phuong-an-queue-qua-ami.md](phuong-an-queue-qua-ami.md).
 
 ### PA3. MySQL/MariaDB Realtime + ARI
 
