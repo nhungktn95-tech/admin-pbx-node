@@ -3,7 +3,7 @@
 Trả lời và viết tài liệu bằng **tiếng Việt**. Đọc hết file này trước khi làm.
 
 > **Kiến trúc đã đổi (28/09/2026): BỎ pbx-agent.** Repo này chỉ còn Asterisk + PostgreSQL.
-> Mọi quản trị đi qua **PBX Gateway** (repo `pbx-gateway`), Gateway kết nối thẳng vào DB 5432, AMI 5038, ARI 8088 của cụm này.
+> Mọi quản trị đi qua **PBX Gateway** (repo `pbx-gateway`), Gateway chỉ kết nối **AMI 5038 + ARI 8088** của cụm này — **không dùng DB của cụm** (Bước G2, 05/10/2026).
 > Mọi nội dung cũ về `agent/`, `/agent/v1`, `AGENT_API_KEY` đã hết hiệu lực — không làm nữa.
 
 ---
@@ -13,8 +13,8 @@ Trả lời và viết tài liệu bằng **tiếng Việt**. Đọc hết file 
 Dự án call AI hành chính công: người dân → nhà mạng (SIP trunk) → **Asterisk** → IVR (DTMF) → **AI** (Media server) → AI chuyển sang **group người thật**.
 
 ```
-Admin UI / Phone AI / CRM ──REST──▶ PBX Gateway ──SQL 5432──▶ Realtime DB ◀── Asterisk đọc
-                                          └────AMI 5038 / ARI 8088──▶ Asterisk
+Admin UI / Phone AI / CRM ──REST──▶ PBX Gateway ──ARI 8088 (máy lẻ) / AMI 5038 (lệnh + sự kiện Cdr)──▶ Asterisk
+                                                                     Asterisk ──▶ astdb (máy lẻ), PostgreSQL (queue, cdr)
 Softphone, Media AI, nhà mạng ──SIP 5060 + RTP──▶ Asterisk
 Softphone SDK (trình duyệt) ──WSS 8089 + SRTP──▶ Asterisk
 ```
@@ -27,17 +27,17 @@ Thoại **không** đi qua Gateway. Cần một cửa cho cả cuộc gọi thì
 | Chủ đề | Quyết định |
 | --- | --- |
 | PBX | Asterisk thuần 20 LTS (gói Ubuntu 24.04), không FreePBX |
-| Cấu hình | Realtime DB PostgreSQL: máy lẻ, queue (sau: DID, IVR) → hiệu lực ngay, không reload |
-| Quản trị | Chỉ PBX Gateway. DB/AMI/ARI chỉ mở cho IP Gateway (mạng nội bộ/VPN + firewall) |
-| User cho Gateway | DB: `GW_DB_USER` (ghi ps_*, queues, queue_members; chỉ đọc cdr). AMI: `AMI_USER`. ARI: `ARI_USER` |
+| Cấu hình | Máy lẻ PJSIP (endpoint/auth/aor): **astdb** của Asterisk, Gateway ghi qua ARI Push Configuration (G2). Queue: Realtime DB PostgreSQL. Đều hiệu lực ngay, không reload |
+| Quản trị | Chỉ PBX Gateway. AMI/ARI chỉ mở cho IP Gateway (mạng nội bộ/VPN + firewall). DB 5432 chỉ cho quản trị viên |
+| User cho Gateway | AMI: `AMI_USER` (đọc có `cdr`). ARI: `ARI_USER` (`read_only = no` để ghi máy lẻ). `GW_DB_USER` không còn dùng (giữ cho cụm cũ, có thể bỏ) |
 | Quy ước số | 1xx người · 15x máy web (WebRTC) · 2xx AI · 6xx group · 9000 giả nhà mạng (lab) |
 | Context | `from-internal` (người, web), `from-ai` (chỉ tới 1xx/6xx), `from-trunk` (tra DID) |
 | Phím bấm | `dtmf_mode=rfc4733` mọi máy lẻ |
 | Máy web | `webrtc=yes`, `transport=transport-wss`, cổng WSS 8089 (http.conf, chứng chỉ tự ký ở lab) |
-| Một máy lẻ | 1 dòng ở 3 bảng `ps_aors`, `ps_auths`, `ps_endpoints` cùng `id` |
-| Mật khẩu máy lẻ | Không lưu mật khẩu gốc. `ps_auths`: `auth_type='md5'`, `realm='asterisk'`, `md5_cred=md5(username:asterisk:mật_khẩu)`, `password=NULL` (CHECK constraint bắt buộc). Gateway tự tính md5_cred khi tạo/đổi mật khẩu. Đổi `default_realm` = phải tính lại mọi md5_cred |
+| Một máy lẻ | 3 đối tượng sorcery `aor`, `auth`, `endpoint` cùng `id` trong astdb (khóa `/pjsip/{loại}/{số}`, file `/var/lib/asterisk/astdb/astdb.sqlite3`, volume `astdb` — **phải sao lưu**). Bảng `ps_*` chỉ còn là bản lưu của dữ liệu cũ |
+| Mật khẩu máy lẻ | Không lưu mật khẩu gốc. Đối tượng `auth`: `auth_type=md5`, `realm=asterisk`, `md5_cred=md5(username:asterisk:mật_khẩu)`, `password` rỗng. Gateway tự tính md5_cred khi tạo/đổi mật khẩu. Đổi `default_realm` = phải tính lại mọi md5_cred |
 | Mật khẩu ARI | `ari.conf` lưu crypt SHA-512 (entrypoint băm từ `ARI_PASSWORD`). AMI buộc lưu dạng gốc (giới hạn của Asterisk) |
-| Lịch sử | Bảng `cdr`, các dòng cùng `linkedid` là 1 cuộc gọi |
+| Lịch sử | Bảng `cdr` (các dòng cùng `linkedid` là 1 cuộc gọi) + `cdr_manager.conf` gửi mỗi CDR thành sự kiện AMI `Cdr` (thêm `LinkedID`, `Sequence`, `RecordingFile`) — Gateway lưu lịch sử từ sự kiện này |
 | Ghi âm | Mọi cuộc gọi đã nối máy (`MixMonitor` tùy chọn `b`, context `[sub-record]`), tắt bằng `RECORD_CALLS=no`. File WAV ở `/var/spool/asterisk/recording` (volume `recordings`) = thư mục ghi âm của ARI → Gateway liệt kê/tải/xóa qua ARI `/recordings/stored`. Tên file (không đuôi) lưu ở `cdr.recordingfile`. **Không tự xóa** file |
 
 ## 3. Trạng thái
@@ -45,6 +45,31 @@ Thoại **không** đi qua Gateway. Cần một cửa cho cả cuộc gọi thì
 - Bước 1–3 cũ (gọi nhau, group 600, thêm máy lẻ bằng SQL): **xong**.
 - **Bước G1 — mở cho Gateway + WSS: bản tham chiếu đã làm xong và kiểm tra** (xem mục 4). Cần áp vào repo thật.
 - Tiếp theo nằm ở repo `pbx-gateway` (Bước 2: Server Management).
+- **Bước G2 — Gateway không dùng DB của cụm (05/10/2026): đã làm, thử trên cụm Docker cục bộ** (xem mục 4b). Chưa áp lên lab-02.
+
+## 4b. Bước G2 — máy lẻ trong astdb + CDR qua AMI
+
+Lý do: PBX Gateway không được phụ thuộc database của cụm. Asterisk có sẵn ARI Push Configuration để tạo máy lẻ, nhưng
+**không dùng được với realtime PostgreSQL**: khi ghi qua ARI, `res_config_odbc`/`res_config_pgsql` INSERT mọi thuộc tính mà
+không đặt tên cột trong nháy kép → cột `100rel` của endpoint gây lỗi cú pháp; `update_odbc` còn hỏng khi đối tượng > 64 thuộc tính.
+Đã thử, xem lịch sử commit. Vì vậy chuyển 3 loại đối tượng PJSIP sang `astdb`.
+
+| File | Thay đổi |
+| --- | --- |
+| `asterisk/conf/sorcery.conf` | `endpoint/auth/aor = astdb,pjsip` |
+| `asterisk/conf/extconfig.conf` | bỏ `ps_*`, chỉ còn `queues`, `queue_members` |
+| `asterisk/conf/cdr_manager.conf` (mới) | bật sự kiện AMI `Cdr`, mappings `linkedid`, `sequence`, `recordingfile` |
+| `asterisk/entrypoint.sh` | bỏ `(!)` của `[directories]` trong asterisk.conf (gói Ubuntu để template nên mục bị bỏ qua) và đặt `astdbdir => /var/lib/asterisk/astdb` |
+| `docker-compose.yml` | volume `astdb:/var/lib/asterisk/astdb` |
+| `scripts/chuyen-may-le-sang-astdb.sh` (mới) | chuyển máy lẻ cũ từ `ps_*` sang astdb qua ARI, giữ `md5_cred` |
+| `scripts/check-gateway-access.sh` | bỏ kiểm tra DB; thêm thử ARI tạo + xóa aor tạm |
+
+Đã kiểm tra trên cụm Docker cục bộ: ARI tạo/sửa/xóa máy lẻ, restart Asterisk vẫn còn; script chuyển 15 đối tượng seed, md5 giữ nguyên;
+REGISTER UDP có digest: đúng mật khẩu 200, sai 401; sự kiện `Cdr` có `LinkedID`, `Sequence`, `RecordingFile`.
+
+Áp lên cụm đang chạy (lab-02…): `git pull` → `docker compose up -d --build` → **ngay sau đó** `sh scripts/chuyen-may-le-sang-astdb.sh`
+(giữa hai lệnh máy lẻ cũ tạm không đăng ký được) → `asterisk -rx "pjsip show endpoints"`.
+Lưu ý: `pjsip show endpoints` (CLI) hiện mỗi máy hai lần với astdb — chỉ là hiển thị, mỗi số một bản ghi trong astdb.
 
 ## 4. Bước G1 — Mở kết nối cho PBX Gateway + bật WSS
 

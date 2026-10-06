@@ -46,6 +46,14 @@ if [ -n "$TZ" ] && [ -f "/usr/share/zoneinfo/$TZ" ]; then
   echo "$TZ" > /etc/timezone
 fi
 
+# Máy lẻ PJSIP lưu trong astdb (sorcery.conf). Để astdb ở thư mục riêng (volume astdb) thay vì cả /var/lib/asterisk,
+# để moh/sounds trong image vẫn được cập nhật khi build lại.
+mkdir -p /var/lib/asterisk/astdb
+chown asterisk:asterisk /var/lib/asterisk/astdb 2>/dev/null || true
+# asterisk.conf của gói Ubuntu để [directories](!) — dấu (!) là template nên Asterisk bỏ qua cả mục; bỏ (!) để mục có
+# hiệu lực (các đường dẫn khác trong mục vốn trùng mặc định của gói). File astdb = <astdbdir>/astdb.sqlite3.
+sed -i -e 's|^\[directories\](!)|[directories]|' -e 's|^astdbdir *=>.*|astdbdir => /var/lib/asterisk/astdb|' /etc/asterisk/asterisk.conf
+
 # Thư mục ghi âm cuộc gọi (volume recordings) - cũng là thư mục ghi âm của ARI
 mkdir -p /var/spool/asterisk/recording
 chown asterisk:asterisk /var/spool/asterisk/recording 2>/dev/null || true

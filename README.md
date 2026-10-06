@@ -8,8 +8,9 @@ Project này dựng **máy tổng đài** trong kiến trúc Admin PBX, làm 3 b
 | 2 | Gọi group 600 → đổ chuông 101 + 102 | Group (queue), chiến lược đổ chuông |
 | 3 | Thêm máy lẻ 103 bằng một câu SQL khi tổng đài đang chạy | Realtime DB — nền tảng để PBX Gateway tạo máy lẻ sau này |
 | G1 | Mở DB, AMI, ARI cho PBX Gateway; bật WSS + máy lẻ web 150/151 | Gateway quản trị cụm từ xa; trình duyệt gọi được |
+| G2 | Máy lẻ lưu trong astdb, Gateway tạo qua ARI; lịch sử gửi qua sự kiện AMI `Cdr` | Gateway **không cần biết DB của cụm** (chỉ AMI + ARI) |
 
-Project này **chỉ gồm Asterisk + Realtime DB**. Việc quản trị (tạo máy lẻ, group, thống kê) do **PBX Gateway** (repo `pbx-gateway`) làm từ xa qua DB, AMI, ARI.
+Project này **chỉ gồm Asterisk + Realtime DB**. Việc quản trị (tạo máy lẻ, group, thống kê) do **PBX Gateway** (repo `pbx-gateway`) làm từ xa qua AMI + ARI (từ G2 không dùng DB của cụm).
 
 ---
 
@@ -26,8 +27,8 @@ pbx-node/
 │     ├─ modules.conf          # nạp module (ODBC trước PJSIP, tắt chan_sip cũ)
 │     ├─ res_odbc.conf.tmpl    # Asterisk -> PostgreSQL
 │     ├─ odbc.ini.tmpl         #   (địa chỉ DB)
-│     ├─ extconfig.conf        # bảng nào đọc từ DB
-│     ├─ sorcery.conf          # PJSIP đọc máy lẻ từ DB
+│     ├─ extconfig.conf        # bảng nào đọc từ DB (queue)
+│     ├─ sorcery.conf          # máy lẻ PJSIP lưu trong astdb (Gateway ghi qua ARI)
 │     ├─ pjsip.conf.tmpl       # chỉ có transport (UDP 5060, WSS), KHÔNG có máy lẻ
 │     ├─ manager.conf.tmpl     # AMI 5038 cho Gateway
 │     ├─ http.conf.tmpl, ari.conf.tmpl  # ARI 8088, WSS 8089
@@ -35,11 +36,13 @@ pbx-node/
 │     ├─ extensions.conf       # DIALPLAN: gọi 1xx/2xx, gọi group 6xx, *43 thử âm thanh, ghi âm
 │     ├─ queues.conf           # group đọc từ DB
 │     ├─ cdr.conf, cdr_adaptive_odbc.conf   # ghi lịch sử cuộc gọi vào bảng cdr
+│     ├─ cdr_manager.conf      # gửi mỗi CDR thành sự kiện AMI "Cdr" cho Gateway
 ├─ db/init/
 │  ├─ 01-schema.sql            # tạo bảng: ps_endpoints, ps_auths, ps_aors, queues, queue_members, cdr
 │  ├─ 02-seed.sql              # dữ liệu mẫu: 101, 102, 201 (+ máy web 150, 151), group 600
 │  └─ 03-gateway-user.sh       # user DB riêng cho PBX Gateway
 ├─ scripts/check-gateway-access.sh   # chạy trên máy Gateway để kiểm tra kết nối
+├─ scripts/chuyen-may-le-sang-astdb.sh # chuyển máy lẻ từ bảng ps_* sang astdb (chạy một lần)
 └─ sql/                        # câu SQL cho bước 3, nâng cấp DB cũ, xem dữ liệu
 ```
 
@@ -147,6 +150,8 @@ Gọi 600 vài lần: lần lượt 101 rồi 102 đổ chuông (xoay vòng). Đ
 ---
 
 ## Bước 3 — Thêm máy lẻ 103 khi tổng đài đang chạy
+
+> **Từ Bước G2 cách này không còn tác dụng**: máy lẻ lưu trong astdb, thêm/sửa qua PBX Gateway (hoặc ARI), xem mục *Bước G2*. Giữ lại để hiểu cấu trúc một máy lẻ.
 
 Đây chính là việc PBX Gateway sẽ làm tự động sau này.
 
@@ -278,9 +283,9 @@ PBX Gateway (máy khác, hoặc cùng máy ở lab) cần vào được 3 cổng
 
 | Cổng | Dùng cho | Ai được vào |
 | --- | --- | --- |
-| 5432/tcp | Realtime DB — Gateway ghi máy lẻ/group, đọc CDR | Chỉ IP Gateway |
-| 5038/tcp | AMI — trạng thái, lệnh | Chỉ IP Gateway (AMI không mã hóa) |
-| 8088/tcp | ARI — dùng ở giai đoạn 2 | Chỉ IP Gateway |
+| 5432/tcp | Realtime DB — Gateway **không dùng** từ G2 | Chỉ quản trị viên |
+| 5038/tcp | AMI — trạng thái, lệnh, sự kiện `Cdr` | Chỉ IP Gateway (AMI không mã hóa) |
+| 8088/tcp | ARI — tạo/sửa/xóa máy lẻ, tải ghi âm | Chỉ IP Gateway |
 | 8089/tcp | WSS — Softphone SDK trong trình duyệt | Người dùng nội bộ |
 
 **1. Cập nhật `.env`** (so với `.env.example`, thêm các dòng mục *Kết nối cho PBX Gateway*): `GATEWAY_IP`, `AMI_SECRET`, `ARI_PASSWORD`, `GW_DB_PASSWORD`… Lab chạy Gateway cùng máy thì `GATEWAY_IP` để IP máy này.
@@ -328,6 +333,26 @@ Kết quả mong đợi — toàn OK:
 - *AMI từ chối*: sai `AMI_SECRET`, hoặc IP Gateway không nằm trong `permit` → xem `GATEWAY_IP`, `AMI_PERMIT_EXTRA`. Sau khi sửa `.env`: `docker compose up -d` (tạo lại container).
 - *Không vào được 5432 từ máy khác*: firewall máy chủ, hoặc `ADMIN_BIND` đang là 127.0.0.1.
 - *Trình duyệt không kết nối WSS*: chứng chỉ tự ký → mở `https://HOST_IP:8089/ws` một lần, chọn *Advanced → Proceed*.
+
+
+## Bước G2 — Máy lẻ trong astdb, Gateway không dùng DB của cụm
+
+Máy lẻ PJSIP (`endpoint`, `auth`, `aor`) lưu trong **astdb** của Asterisk (`/var/lib/asterisk/astdb/astdb.sqlite3`, volume `astdb` — **nhớ sao lưu**).
+PBX Gateway tạo/sửa/xóa qua ARI `PUT/DELETE /ari/asterisk/config/dynamic/res_pjsip/{endpoint|auth|aor}/{số}`, có hiệu lực ngay.
+Lịch sử cuộc gọi vẫn ghi bảng `cdr`, đồng thời gửi sự kiện AMI `Cdr` cho Gateway (`cdr_manager.conf`).
+
+**Sau `docker compose up -d --build` lần đầu với bản G2 (cụm mới hoặc cụm đang chạy) — chạy ngay:**
+
+```bash
+sh scripts/chuyen-may-le-sang-astdb.sh
+docker compose exec asterisk asterisk -rx "pjsip show endpoints"
+```
+
+Script đọc máy lẻ trong bảng `ps_*` (dữ liệu mẫu hoặc máy tạo trước G2) và ghi sang astdb qua ARI, **giữ nguyên mật khẩu** (md5).
+Giữa lúc khởi động và lúc chạy script, máy lẻ cũ tạm không đăng ký được. Chạy lại nhiều lần được. Bảng `ps_*` giữ nguyên làm bản lưu,
+sửa bảng này **không** còn tác dụng. (`pjsip show endpoints` hiện mỗi máy hai lần với astdb — chỉ là hiển thị.)
+
+Xem/sao lưu máy lẻ: `docker compose exec asterisk asterisk -rx "database show pjsip"`; sao lưu volume `astdb` như volume `pgdata`.
 
 ## Lộ trình tiếp theo
 
