@@ -23,6 +23,7 @@ for f in /opt/pbx-conf/*; do
   case "$name" in
     odbc.ini.tmpl) envsubst "$VARS" < "$f" > /etc/odbc.ini ;;
     *.tmpl)        envsubst "$VARS" < "$f" > "/etc/asterisk/${name%.tmpl}" ;;
+    queues-groups.conf) ;;   # group: bản mẫu, chép vào volume astconf bên dưới
     *)             cp "$f" "/etc/asterisk/$name" ;;
   esac
 done
@@ -53,6 +54,12 @@ chown asterisk:asterisk /var/lib/asterisk/astdb 2>/dev/null || true
 # asterisk.conf của gói Ubuntu để [directories](!) — dấu (!) là template nên Asterisk bỏ qua cả mục; bỏ (!) để mục có
 # hiệu lực (các đường dẫn khác trong mục vốn trùng mặc định của gói). File astdb = <astdbdir>/astdb.sqlite3.
 sed -i -e 's|^\[directories\](!)|[directories]|' -e 's|^astdbdir *=>.*|astdbdir => /var/lib/asterisk/astdb|' /etc/asterisk/asterisk.conf
+
+# Group (queue): Gateway sửa /etc/asterisk/gateway/queues-groups.conf qua AMI UpdateConfig (queues.conf #include file này).
+# Thư mục gateway/ là volume astconf nên không bị chép đè mỗi lần khởi động; chỉ chép bản mẫu khi volume còn trống.
+mkdir -p /etc/asterisk/gateway
+[ -f /etc/asterisk/gateway/queues-groups.conf ] || cp /opt/pbx-conf/queues-groups.conf /etc/asterisk/gateway/queues-groups.conf
+chown -R asterisk:asterisk /etc/asterisk/gateway 2>/dev/null || true
 
 # Thư mục ghi âm cuộc gọi (volume recordings) - cũng là thư mục ghi âm của ARI
 mkdir -p /var/spool/asterisk/recording

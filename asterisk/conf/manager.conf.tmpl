@@ -19,7 +19,8 @@ permit = 127.0.0.1/255.255.255.255
 ; Lab: Gateway chạy cùng máy với Docker thì kết nối đi qua mạng nội bộ Docker (172.16-31.x.x).
 ; Môi trường thật: đặt AMI_PERMIT_EXTRA = IP Gateway để bỏ dải này.
 permit = ${AMI_PERMIT_EXTRA}
-; Quyền: đọc trạng thái + gửi lệnh gọi/chuyển máy, không cho sửa file cấu hình
-read = system,call,agent,user,dtmf,reporting,cdr
-write = system,call,agent,user,originate,reporting
+; Quyền: đọc trạng thái + gửi lệnh gọi/chuyển máy + đọc/sửa file cấu hình (config: Gateway quản lý group trong queues.conf
+; bằng GetConfig/UpdateConfig). config sửa được MỌI file trong /etc/asterisk → AMI chỉ mở cho IP Gateway, mật khẩu mạnh.
+read = system,call,agent,user,dtmf,reporting,cdr,config
+write = system,call,agent,user,originate,reporting,config
 writetimeout = 5000

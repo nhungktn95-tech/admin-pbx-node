@@ -9,6 +9,7 @@ Project này dựng **máy tổng đài** trong kiến trúc Admin PBX, làm 3 b
 | 3 | Thêm máy lẻ 103 bằng một câu SQL khi tổng đài đang chạy | Realtime DB — nền tảng để PBX Gateway tạo máy lẻ sau này |
 | G1 | Mở DB, AMI, ARI cho PBX Gateway; bật WSS + máy lẻ web 150/151 | Gateway quản trị cụm từ xa; trình duyệt gọi được |
 | G2 | Máy lẻ lưu trong astdb, Gateway tạo qua ARI; lịch sử gửi qua sự kiện AMI `Cdr` | Gateway **không cần biết DB của cụm** (chỉ AMI + ARI) |
+| G3 | Group (queue) trong `gateway/queues-groups.conf`, Gateway quản lý qua AMI `UpdateConfig` | Tạo/sửa/xóa group, thứ tự đổ chuông từ Gateway |
 
 Project này **chỉ gồm Asterisk + Realtime DB**. Việc quản trị (tạo máy lẻ, group, thống kê) do **PBX Gateway** (repo `pbx-gateway`) làm từ xa qua AMI + ARI (từ G2 không dùng DB của cụm).
 
@@ -43,6 +44,7 @@ pbx-node/
 │  └─ 03-gateway-user.sh       # user DB riêng cho PBX Gateway
 ├─ scripts/check-gateway-access.sh   # chạy trên máy Gateway để kiểm tra kết nối
 ├─ scripts/chuyen-may-le-sang-astdb.sh # chuyển máy lẻ từ bảng ps_* sang astdb (chạy một lần)
+├─ scripts/chuyen-group-sang-queues-conf.sh # chuyển group từ bảng queues sang queues-groups.conf (chạy một lần)
 └─ sql/                        # câu SQL cho bước 3, nâng cấp DB cũ, xem dữ liệu
 ```
 
@@ -334,6 +336,14 @@ Kết quả mong đợi — toàn OK:
 - *Không vào được 5432 từ máy khác*: firewall máy chủ, hoặc `ADMIN_BIND` đang là 127.0.0.1.
 - *Trình duyệt không kết nối WSS*: chứng chỉ tự ký → mở `https://HOST_IP:8089/ws` một lần, chọn *Advanced → Proceed*.
 
+
+## Bước G3 — Group do Gateway quản lý qua AMI
+
+Mỗi group là một mục `[6xx]` trong `/etc/asterisk/gateway/queues-groups.conf` (volume `astconf` — **nhớ sao lưu**), `queues.conf` `#include` file này.
+PBX Gateway đọc/sửa bằng AMI `GetConfig`/`UpdateConfig` rồi `QueueReload` (user AMI cần quyền `config`). Thứ tự dòng `member =>` là thứ tự đổ chuông khi `strategy = linear`.
+
+Cụm đã có group trong bảng `queues` (trước G3): sau `docker compose up -d --build` chạy `sh scripts/chuyen-group-sang-queues-conf.sh`.
+Bảng `queues`/`queue_members` không còn tác dụng.
 
 ## Bước G2 — Máy lẻ trong astdb, Gateway không dùng DB của cụm
 

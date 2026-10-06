@@ -106,11 +106,18 @@ Hai lỗi âm thanh đã gặp, cả hai do Asterisk nằm trong mạng Docker `
 
 | Cấu hình (đã có trong repo, **đừng xóa**) | Nếu thiếu |
 | --- | --- |
-| `pjsip.conf`: `local_net = 172.16.0.0/12` (cạnh `127.0.0.1/32`) ở cả `transport-udp` và `transport-wss` | SDP gửi softphone là `c=IN IP4 172.18.x.x` → Linphone/MicroSIP **không có tiếng** (Receive = 0) |
+| `pjsip.conf`: `local_net = ${CONTAINER_IP}/32` (cạnh `127.0.0.1/32`) ở cả `transport-udp` và `transport-wss` | SDP gửi softphone là `c=IN IP4 172.18.x.x` → Linphone/MicroSIP **không có tiếng** (Receive = 0) |
 | `rtp.conf`: `[ice_host_candidates]` `${CONTAINER_IP} => ${HOST_IP}` | Trình duyệt trên máy có card ảo (Docker Desktop, WSL, VirtualBox) **không gửi được tiếng** |
 | `external_media_address` / `external_signaling_address` = `${HOST_IP}` | Cuộc gọi ngắt sau 32 giây, không tiếng |
 
 - [ ] **Không** thêm dải LAN (`192.168.x`) vào `local_net`.
+- [ ] **Không** dùng cả dải Docker `172.16.0.0/12` trong `local_net` (bản cũ từng dùng): dải này chứa cổng mạng Docker `172.x.0.1`,
+  là IP nguồn của softphone chạy cùng máy với Docker, và của mọi softphone khi dùng Docker Desktop (Windows/macOS).
+  → *`200 OK` gửi `Contact: <sip:172.x.0.3:5060>`, `c=IN IP4 172.x.0.3` → softphone không gửi được ACK → **cuộc gọi ngắt ở giây 32**.
+  Kiểm tra: `pjsip set logger on`, xem `Contact` và `c=` trong `200 OK` phải là `HOST_IP`.*
+- [ ] Softphone chạy **cùng máy** với Asterisk Docker: không được dùng cổng SIP 5060 (Docker đã giữ). Linphone 6: đặt `sip_port=5070`
+  trong `%LOCALAPPDATA%\linphone\linphonerc` (khóa `sip_udp_port` không có tác dụng; chỉ sửa khi Linphone đã Quit).
+  → *Linphone báo `Error during connection`, log Asterisk trống; log Linphone: `udp bind() failed ... port 5060`.*
 - [ ] Sửa transport PJSIP phải **restart container**, `reload` không đủ.
 
 ## 7. Máy web (WebRTC, máy lẻ 15x)
@@ -123,6 +130,11 @@ Hai lỗi âm thanh đã gặp, cả hai do Asterisk nằm trong mạng Docker `
   Lâu dài: cài chứng chỉ vào máy (Windows: `certutil -addstore Root <file>.crt`; Android: Cài đặt → Bảo mật → Cài chứng chỉ CA; iPhone: cài hồ sơ + bật *Certificate Trust Settings*).
 - [ ] Trình duyệt **chỉ cho dùng micro khi trang softphone mở bằng HTTPS** (hoặc `localhost`). Điện thoại mở `http://192.168.x.x` → đăng ký được nhưng không gửi tiếng.
 - [ ] Môi trường thật: dùng chứng chỉ thật theo tên miền, không dùng tự ký.
+- [ ] Container Asterisk phải có **hostname cố định bắt đầu bằng chữ cái** (`hostname: pbx-asterisk` trong `docker-compose.yml`).
+  Asterisk dùng hostname làm tên miền trong `From`/`Contact` khi gửi qua WebSocket; hostname mặc định của Docker là mã container
+  ngẫu nhiên, nếu bắt đầu bằng chữ số (vd `480a5ff399f6`) thì sai chuẩn SIP và JsSIP bỏ gói. Lỗi lúc có lúc không, tùy lần tạo container.
+  → *Máy web đăng ký được nhưng `pjsip show contacts` là `Unavail`; gọi tới máy web: `Could not create dialog to invalid URI '150'`.
+  Console trình duyệt (`JsSIP.debug.enable('JsSIP:*')`): `error parsing "From" header field`.*
 
 ## 8. Sửa file nào → chạy lệnh gì
 

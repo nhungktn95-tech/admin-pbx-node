@@ -29,6 +29,10 @@ services:
     build: ./asterisk
     image: pbx-asterisk:20
     container_name: pbx-asterisk
+    # Hostname cố định, bắt đầu bằng chữ cái. Asterisk dùng hostname làm tên miền trong From/Contact khi gửi qua
+    # WebSocket; Docker mặc định đặt hostname = mã container (vd 480a5ff399f6), bắt đầu bằng chữ số là sai chuẩn SIP
+    # -> JsSIP bỏ gói -> máy web đăng ký được nhưng Unavail, không nhận được cuộc gọi.
+    hostname: pbx-asterisk
     restart: unless-stopped
     depends_on:
       db:
@@ -45,6 +49,7 @@ services:
       - astkeys:/etc/asterisk/keys         # chứng chỉ TLS cho WSS (tự tạo lần đầu)
       - astlogs:/var/log/asterisk
       - astdb:/var/lib/asterisk/astdb      # máy lẻ PJSIP (astdb.sqlite3) — PHẢI sao lưu
+      - astconf:/etc/asterisk/gateway      # group (queues-groups.conf, Gateway sửa qua AMI UpdateConfig) — PHẢI sao lưu
       - recordings:/var/spool/asterisk/recording   # file ghi âm cuộc gọi (KHÔNG tự xóa, theo dõi dung lượng ổ đĩa)
 
 volumes:
@@ -52,4 +57,5 @@ volumes:
   astkeys:
   astlogs:
   astdb:
+  astconf:
   recordings:

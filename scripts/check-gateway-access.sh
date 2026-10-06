@@ -25,6 +25,14 @@ else
   fail "AMI từ chối (sai AMI_SECRET hoặc IP chưa nằm trong permit của manager.conf)"
 fi
 
+GC_OUT=$(printf "Action: Login\r\nUsername: %s\r\nSecret: %s\r\nEvents: off\r\n\r\nAction: GetConfig\r\nFilename: gateway/queues-groups.conf\r\n\r\nAction: Logoff\r\n\r\n" \
+  "$AMI_USER" "$AMI_SECRET" | nc -w 3 "$HOST" 5038 2>/dev/null | tr -d '\r')
+if echo "$GC_OUT" | grep -q "^Category-"; then
+  ok "AMI đọc được group (GetConfig gateway/queues-groups.conf: $(echo "$GC_OUT" | grep -c '^Category-') group)"
+else
+  fail "AMI không đọc được gateway/queues-groups.conf (thiếu quyền config trong manager.conf? chưa có volume astconf?)"
+fi
+
 echo "3) ARI"
 CODE=$(curl -s -o /dev/null -w "%{http_code}" -u "$ARI_USER:$ARI_PASSWORD" "http://$HOST:8088/ari/asterisk/info")
 [ "$CODE" = "200" ] && ok "ARI trả 200" || fail "ARI trả $CODE"

@@ -14,9 +14,12 @@ bind = 0.0.0.0:5060
 external_media_address     = ${HOST_IP}
 external_signaling_address = ${HOST_IP}
 local_net = 127.0.0.1/32
-; Mạng Docker: IP của chính Asterisk (172.x) phải nằm trong local_net thì Asterisk mới
-; thay địa chỉ âm thanh trong SDP bằng external_media_address. Thiếu dòng này -> c=IN IP4 172.x, mất tiếng.
-local_net = 172.16.0.0/12
+; IP của chính Asterisk trong mạng Docker (entrypoint lấy bằng hostname -i) phải nằm trong local_net thì Asterisk
+; mới thay địa chỉ âm thanh trong SDP bằng external_media_address. Thiếu dòng này -> c=IN IP4 172.x, mất tiếng.
+; Chỉ /32, KHÔNG dùng cả dải 172.16.0.0/12: dải đó chứa cổng mạng Docker (172.x.0.1) - nguồn của softphone chạy
+; cùng máy với Docker (và mọi softphone khi dùng Docker Desktop) -> Asterisk coi là nội bộ, gửi Contact/c= là IP
+; container -> không có ACK, cuộc gọi ngắt ở giây 32.
+local_net = ${CONTAINER_IP}/32
 
 ; Softphone SDK trong trình duyệt: SIP qua WebSocket bảo mật (WSS).
 ; Cổng thật là 8089 khai báo trong http.conf; bind ở đây chỉ để PJSIP nhận transport.
@@ -27,6 +30,5 @@ bind = 0.0.0.0
 external_media_address     = ${HOST_IP}
 external_signaling_address = ${HOST_IP}
 local_net = 127.0.0.1/32
-; Mạng Docker: IP của chính Asterisk (172.x) phải nằm trong local_net thì Asterisk mới
-; thay địa chỉ âm thanh trong SDP bằng external_media_address. Thiếu dòng này -> c=IN IP4 172.x, mất tiếng.
-local_net = 172.16.0.0/12
+; Như transport-udp: chỉ IP của chính Asterisk (/32), không dùng cả dải Docker.
+local_net = ${CONTAINER_IP}/32

@@ -1,4 +1,4 @@
-# Phương án: quản lý group (queue) qua AMI khi máy lẻ dùng astdb + ARI
+ # Phương án: quản lý group (queue) qua AMI khi máy lẻ dùng astdb + ARI
 
 > Trạng thái: **phương án, chưa làm, chưa chạy thử**. Ngày viết: 06/10/2026. Nhánh: `feature/astdb-ari-queue-ami`.
 > Bổ sung cho PA2 trong [phan-tich-luu-tru-may-le.md](phan-tich-luu-tru-may-le.md): PA2 không quản lý được queue (F8).

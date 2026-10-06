@@ -27,9 +27,9 @@ Thoại **không** đi qua Gateway. Cần một cửa cho cả cuộc gọi thì
 | Chủ đề | Quyết định |
 | --- | --- |
 | PBX | Asterisk thuần 20 LTS (gói Ubuntu 24.04), không FreePBX |
-| Cấu hình | Máy lẻ PJSIP (endpoint/auth/aor): **astdb** của Asterisk, Gateway ghi qua ARI Push Configuration (G2). Queue: Realtime DB PostgreSQL. Đều hiệu lực ngay, không reload |
+| Cấu hình | Máy lẻ PJSIP (endpoint/auth/aor): **astdb** của Asterisk, Gateway ghi qua ARI Push Configuration (G2). Group (queue): file `/etc/asterisk/gateway/queues-groups.conf` (volume `astconf`), Gateway sửa qua AMI `UpdateConfig` + `QueueReload` (G3). Hiệu lực ngay, không rớt cuộc gọi đang chờ. PostgreSQL chỉ còn bảng `cdr` |
 | Quản trị | Chỉ PBX Gateway. AMI/ARI chỉ mở cho IP Gateway (mạng nội bộ/VPN + firewall). DB 5432 chỉ cho quản trị viên |
-| User cho Gateway | AMI: `AMI_USER` (đọc có `cdr`). ARI: `ARI_USER` (`read_only = no` để ghi máy lẻ). `GW_DB_USER` không còn dùng (giữ cho cụm cũ, có thể bỏ) |
+| User cho Gateway | AMI: `AMI_USER` (đọc có `cdr`; đọc/ghi `config` để quản lý group — sửa được MỌI file /etc/asterisk, nên AMI chỉ mở cho IP Gateway). ARI: `ARI_USER` (`read_only = no` để ghi máy lẻ). `GW_DB_USER` không còn dùng (giữ cho cụm cũ, có thể bỏ) |
 | Quy ước số | 1xx người · 15x máy web (WebRTC) · 2xx AI · 6xx group · 9000 giả nhà mạng (lab) |
 | Context | `from-internal` (người, web), `from-ai` (chỉ tới 1xx/6xx), `from-trunk` (tra DID) |
 | Phím bấm | `dtmf_mode=rfc4733` mọi máy lẻ |
@@ -46,6 +46,29 @@ Thoại **không** đi qua Gateway. Cần một cửa cho cả cuộc gọi thì
 - **Bước G1 — mở cho Gateway + WSS: bản tham chiếu đã làm xong và kiểm tra** (xem mục 4). Cần áp vào repo thật.
 - Tiếp theo nằm ở repo `pbx-gateway` (Bước 2: Server Management).
 - **Bước G2 — Gateway không dùng DB của cụm (05/10/2026): đã làm, thử trên cụm Docker cục bộ** (xem mục 4b). Chưa áp lên lab-02.
+
+## 4c. Bước G3 — group trong queues-groups.conf, Gateway quản lý qua AMI (06/10/2026, đã thử trên Docker cục bộ)
+
+Theo phương án [docs/phuong-an-queue-qua-ami.md](docs/phuong-an-queue-qua-ami.md) (cách 1). Khác phương án: **không dùng symlink** — AMI chặn
+GetConfig/UpdateConfig khi đường dẫn thật của file nằm ngoài `/etc/asterisk` ("File requires escalated priveledges"), nên volume `astconf`
+gắn thẳng vào `/etc/asterisk/gateway`, `queues.conf` chỉ còn `[general]` + `#include gateway/queues-groups.conf`.
+
+| File | Thay đổi |
+| --- | --- |
+| `asterisk/conf/queues.conf` | `[general]` + `#include gateway/queues-groups.conf` |
+| `asterisk/conf/queues-groups.conf` (mới) | bản mẫu group 600, chỉ chép vào volume khi trống |
+| `asterisk/conf/extconfig.conf` | bỏ `queues`, `queue_members` |
+| `asterisk/conf/manager.conf.tmpl` | thêm `config` vào read/write |
+| `asterisk/entrypoint.sh` | không chép đè `queues-groups.conf`; tạo `/etc/asterisk/gateway` + chép bản mẫu khi trống |
+| `docker-compose.yml` | volume `astconf:/etc/asterisk/gateway` (**sao lưu** cùng `astdb`) |
+| `scripts/chuyen-group-sang-queues-conf.sh` (mới) | chuyển group cũ từ bảng `queues`/`queue_members` (thứ tự theo uniqueid) |
+| `scripts/check-gateway-access.sh` | thử AMI `GetConfig gateway/queues-groups.conf` |
+
+Đã thử: `GetConfig`; `UpdateConfig` NewCat/Append (tạo), DelCat + NewCat trong một lệnh (sửa, đổi thứ tự member — `QueueStatus` trả đúng thứ tự),
+DelCat + `QueueReload` không tham số (xóa queue đang chạy); NewCat trùng → lỗi; restart giữ nguyên. Luôn ghi `ringinuse = no` (mặc định Asterisk là yes).
+Chưa thử: `QueueReload` khi đang có người chờ trong queue.
+
+Áp lên cụm đang chạy: `git pull` → `docker compose up -d --build` → `sh scripts/chuyen-may-le-sang-astdb.sh` (nếu chưa G2) → `sh scripts/chuyen-group-sang-queues-conf.sh`.
 
 ## 4b. Bước G2 — máy lẻ trong astdb + CDR qua AMI
 
@@ -122,7 +145,8 @@ Checklist triển khai đầy đủ (kèm triệu chứng khi làm sai): [docs/l
 - `modules.conf`: `preload => res_odbc.so`, `preload => res_config_odbc.so` (Ubuntu mặc định noload), `noload => chan_sip.so`, tắt `app_voicemail_odbc.so`, `app_voicemail_imap.so`.
 - `queue_members` cần cột `reason_paused` (Asterisk 20).
 - `entrypoint.sh` dùng `envsubst` với **danh sách biến cố định** để không thay `${EXTEN}` trong dialplan. Thêm biến mới = thêm vào `VARS`.
-- Docker bridge: `external_media_address`/`external_signaling_address` = `HOST_IP`; `local_net` = `127.0.0.1/32` + `172.16.0.0/12` (mạng Docker). Thiếu dải Docker thì Asterisk KHÔNG thay IP âm thanh trong SDP (vẫn `c=IN IP4 172.x`) → softphone thường (Linphone, MicroSIP) mất tiếng; máy web vẫn chạy nhờ ICE. KHÔNG thêm dải LAN (192.168.x) vào local_net.
+- Docker bridge: `external_media_address`/`external_signaling_address` = `HOST_IP`; `local_net` = `127.0.0.1/32` + `${CONTAINER_IP}/32` (IP của chính Asterisk). Thiếu IP container thì Asterisk KHÔNG thay IP âm thanh trong SDP (vẫn `c=IN IP4 172.x`) → softphone thường (Linphone, MicroSIP) mất tiếng; máy web vẫn chạy nhờ ICE. KHÔNG thêm dải LAN (192.168.x), KHÔNG dùng cả dải `172.16.0.0/12` (chứa cổng Docker `172.x.0.1` = nguồn của softphone cùng máy/Docker Desktop → Contact/SDP là IP container → ngắt ở giây 32).
+- Container Asterisk có `hostname: pbx-asterisk` (bắt đầu bằng chữ cái). Hostname mặc định = mã container, bắt đầu bằng chữ số thì sai chuẩn SIP trong From/Contact qua WebSocket → JsSIP bỏ gói → máy web `Unavail`, không nhận được cuộc gọi.
 - WebRTC trong Docker: `rtp.conf` có `[ice_host_candidates]` `${CONTAINER_IP} => ${HOST_IP}` (entrypoint lấy `CONTAINER_IP` bằng `hostname -i`). Thiếu thì Asterisk gửi ICE candidate 172.x → trình duyệt trên máy có card ảo (Docker Desktop/WSL) chọn nhầm đường, Asterisk không nhận tiếng (channelstats Receive = 0).
 - Giá trị yes/no trong bảng Realtime lưu dạng chữ `'yes'`/`'no'`.
 - AMI qua Docker bridge: kết nối từ chính máy chủ đi vào với IP nguồn `172.x` (mạng Docker), nên lab cần `AMI_PERMIT_EXTRA=172.16.0.0/255.240.0.0`. Môi trường thật đặt = IP Gateway.
