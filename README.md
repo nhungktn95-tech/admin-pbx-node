@@ -34,7 +34,7 @@ pbx-node/
 │     ├─ manager.conf.tmpl     # AMI 5038 cho Gateway
 │     ├─ http.conf.tmpl, ari.conf.tmpl  # ARI 8088, WSS 8089
 │     ├─ rtp.conf.tmpl         # dải cổng âm thanh
-│     ├─ extensions.conf       # DIALPLAN: gọi 1xx/2xx, gọi group 6xx, *43 thử âm thanh, ghi âm
+│     ├─ extensions.conf       # DIALPLAN: gọi 1xx/2xx, gọi group 6xx, *43 thử âm thanh, *44 thử phím bấm, ghi âm
 │     ├─ queues.conf           # group đọc từ DB
 │     ├─ cdr.conf, cdr_adaptive_odbc.conf   # ghi lịch sử cuộc gọi vào bảng cdr
 │     ├─ cdr_manager.conf      # gửi mỗi CDR thành sự kiện AMI "Cdr" cho Gateway
@@ -116,6 +116,8 @@ Zoiper: *Settings → Accounts → Add → SIP*, điền *Username* dạng `101@
 Kiểm tra: `pjsip show contacts` → thấy `101/sip:101@...` và `102/...` trạng thái `Avail`.
 
 **1.3 Thử âm thanh:** từ 101 bấm `*43` → nghe lời hướng dẫn, nói gì nghe lại nấy. Không nghe gì = sai `HOST_IP` hoặc firewall chặn RTP (xem *Lỗi thường gặp*).
+
+**Thử phím bấm (DTMF):** bấm `*44` → nghe bíp, bấm vài số, kết thúc bằng `#` → Asterisk đọc lại các số vừa bấm. Im lặng rồi cúp máy = softphone chưa gửi phím theo RFC 2833 (Linphone/MicroSIP: chọn DTMF *RFC2833*; JsSIP: `sendDTMF(d, { transportType: 'RFC2833' })`).
 
 **1.4 Gọi 101 → 102:** 102 đổ chuông, nghe máy, nói chuyện được.
 

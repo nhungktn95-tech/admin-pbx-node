@@ -161,7 +161,7 @@ docker compose exec asterisk grep -A1 ice_host_candidates /etc/asterisk/rtp.conf
 ./scripts/check-gateway-access.sh <HOST_IP> .env                    # từ máy Gateway: toàn OK
 ```
 
-Thử gọi theo thứ tự: `*43` (nghe lại tiếng mình) → 101↔102 (nói **quá 32 giây**) → gọi 600 → web 150↔softphone 101 → web↔web (máy tính ↔ điện thoại).
+Thử gọi theo thứ tự: `*43` (nghe lại tiếng mình) → `*44` (bấm số + `#`, nghe đọc lại = DTMF chạy) → 101↔102 (nói **quá 32 giây**) → gọi 600 → web 150↔softphone 101 → web↔web (máy tính ↔ điện thoại).
 
 ### Không có tiếng: đọc `pjsip show channelstats` trong lúc gọi
 
