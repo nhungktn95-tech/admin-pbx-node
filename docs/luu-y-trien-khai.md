@@ -120,7 +120,7 @@ Hai lỗi âm thanh đã gặp, cả hai do Asterisk nằm trong mạng Docker `
   → *Linphone báo `Error during connection`, log Asterisk trống; log Linphone: `udp bind() failed ... port 5060`.*
 - [ ] Sửa transport PJSIP phải **restart container**, `reload` không đủ.
 
-## 7. Máy web (WebRTC, máy lẻ 15x)
+## 7. Máy web (WebRTC: máy lẻ `webrtc=yes`; số mới 1000–4999 như người dùng thường, số cũ 15x)
 
 - [ ] Ô WSS là **`wss://<IP>:8089/ws`**, không phải `https://...` (lỗi `Invalid scheme in WebSocket Server URL`).
 - [ ] Dùng máy lẻ **150/151** (`webrtc=yes`), không dùng 101/102 (máy UDP, thiếu DTLS/ICE).
