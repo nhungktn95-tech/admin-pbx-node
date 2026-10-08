@@ -30,8 +30,8 @@ Thoại **không** đi qua Gateway. Cần một cửa cho cả cuộc gọi thì
 | Cấu hình | Máy lẻ PJSIP (endpoint/auth/aor): **astdb** của Asterisk, Gateway ghi qua ARI Push Configuration (G2). Group (queue): file `/etc/asterisk/gateway/queues-groups.conf` (volume `astconf`), Gateway sửa qua AMI `UpdateConfig` + `QueueReload` (G3). Hiệu lực ngay, không rớt cuộc gọi đang chờ. PostgreSQL chỉ còn bảng `cdr` |
 | Quản trị | Chỉ PBX Gateway. AMI/ARI chỉ mở cho IP Gateway (mạng nội bộ/VPN + firewall). DB 5432 chỉ cho quản trị viên |
 | User cho Gateway | AMI: `AMI_USER` (đọc có `cdr`; đọc/ghi `config` để quản lý group — sửa được MỌI file /etc/asterisk, nên AMI chỉ mở cho IP Gateway). ARI: `ARI_USER` (`read_only = no` để ghi máy lẻ). `GW_DB_USER` không còn dùng (giữ cho cụm cũ, có thể bỏ) |
-| Quy ước số | **4 chữ số** (08/10/2026): 1000–4999 người · 5000–5999 AI · 6000–6999 group · 7000–8999 dự phòng (IVR, dịch vụ) · 9000–9999 nhà mạng/gọi ra (lab: 9000 giả nhà mạng) · `*4x` số thử. **Web hay softphone KHÔNG theo đầu số** — do thuộc tính máy lẻ (`webrtc`, `transport`) quyết định, đổi loại máy không đổi số. Số cũ 3 chữ số (1xx/15x/2xx/6xx) vẫn gọi được song song, xóa dần |
-| Context | `from-internal` (người, web), `from-ai` (chỉ tới người 1000–4999 và group 6000–6999), `from-trunk` (tra DID) |
+| Quy ước số | **3 chữ số** (08/10/2026): **100–599 máy lẻ người dùng** · **600–999 group** · `*4x` số thử (`*43` âm thanh, `*44` phím bấm). **Web hay softphone KHÔNG theo đầu số** — do thuộc tính máy lẻ (`webrtc`, `transport`) quyết định, đổi loại máy không đổi số. **Không có dải số riêng cho AI.** Dialplan: `_[1-5]XX` → Dial, `_[6-9]XX` → Queue |
+| Context | `from-internal` (người, web), `from-ai` (chỉ tới máy lẻ 100–599 và group 600–999), `from-trunk` (tra DID) |
 | Phím bấm | `dtmf_mode=rfc4733` mọi máy lẻ |
 | Máy web | `webrtc=yes`, `transport=transport-wss`, cổng WSS 8089 (http.conf, chứng chỉ tự ký ở lab) |
 | Một máy lẻ | 3 đối tượng sorcery `aor`, `auth`, `endpoint` cùng `id` trong astdb (khóa `/pjsip/{loại}/{số}`, file `/var/lib/asterisk/astdb/astdb.sqlite3`, volume `astdb` — **phải sao lưu**). Bảng `ps_*` chỉ còn là bản lưu của dữ liệu cũ |

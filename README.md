@@ -34,7 +34,7 @@ pbx-node/
 │     ├─ manager.conf.tmpl     # AMI 5038 cho Gateway
 │     ├─ http.conf.tmpl, ari.conf.tmpl  # ARI 8088, WSS 8089
 │     ├─ rtp.conf.tmpl         # dải cổng âm thanh
-│     ├─ extensions.conf       # DIALPLAN: gọi máy lẻ 1000–5999, group 6000–6999 (+ số cũ 3 chữ số), *43 thử âm thanh, *44 thử phím bấm, ghi âm
+│     ├─ extensions.conf       # DIALPLAN: gọi máy lẻ 100–599, group 600–999, *43 thử âm thanh, *44 thử phím bấm, ghi âm
 │     ├─ queues.conf           # group đọc từ DB
 │     ├─ cdr.conf, cdr_adaptive_odbc.conf   # ghi lịch sử cuộc gọi vào bảng cdr
 │     ├─ cdr_manager.conf      # gửi mỗi CDR thành sự kiện AMI "Cdr" cho Gateway
@@ -341,7 +341,7 @@ Kết quả mong đợi — toàn OK:
 
 ## Bước G3 — Group do Gateway quản lý qua AMI
 
-Mỗi group là một mục `[6xxx]` (số cũ `[6xx]` vẫn dùng được) trong `/etc/asterisk/gateway/queues-groups.conf` (volume `astconf` — **nhớ sao lưu**), `queues.conf` `#include` file này.
+Mỗi group (số 600–999) là một mục `[6xx]` trong `/etc/asterisk/gateway/queues-groups.conf` (volume `astconf` — **nhớ sao lưu**), `queues.conf` `#include` file này.
 PBX Gateway đọc/sửa bằng AMI `GetConfig`/`UpdateConfig` rồi `QueueReload` (user AMI cần quyền `config`). Thứ tự dòng `member =>` là thứ tự đổ chuông khi `strategy = linear`.
 
 Cụm đã có group trong bảng `queues` (trước G3): sau `docker compose up -d --build` chạy `sh scripts/chuyen-group-sang-queues-conf.sh`.
@@ -373,7 +373,7 @@ Xem/sao lưu máy lẻ: `docker compose exec asterisk asterisk -rx "database sho
 | 4 | Menu IVR bấm phím (DTMF), số gọi vào (DID); máy 9000 giả làm nhà mạng | pbx-node: `did_routes`, `ivr_menu`, `ivr_option`; context `from-trunk`, `ivr` |
 | 5 | Máy lẻ AI (201) chuyển cuộc gọi sang group 600 | pbx-node: context `from-ai`, `allow_transfer` |
 | — | Quản lý server, máy lẻ, group, thống kê qua API | repo `pbx-gateway` |
-| — | Gọi điện trên trình duyệt | repo `pbx-softphone-sdk` (máy lẻ có `webrtc=yes`, số 1000–4999 như người dùng thường) |
+| — | Gọi điện trên trình duyệt | repo `pbx-softphone-sdk` (máy lẻ có `webrtc=yes`, số 100–599 như người dùng thường) |
 
 --- | --- | --- |
 | 4 | Menu IVR bấm phím (DTMF), số gọi vào (DID); máy 9000 giả làm nhà mạng | Bảng `did_routes`, `ivr_menu`, `ivr_option`; `func_odbc.conf`; context `from-trunk`, `ivr` |
