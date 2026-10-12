@@ -1,0 +1,101 @@
+# ============================================================
+# Triển khai trên cloud (máy ảo có IP public). Dùng CHỒNG lên docker-compose.yml:
+#   docker compose -f docker-compose.yml -f docker-compose.cloud.yml up -d --build
+# Hướng dẫn đầy đủ (chuẩn bị .env, cấp chứng chỉ lần đầu, firewall, VPN): docs/trien-khai-cloud.md
+#
+# Khác bản lab:
+#   - Asterisk chạy network_mode host: không map hàng nghìn cổng RTP qua Docker, dải RTP rộng được.
+#   - AMI 5038 / ARI 8088 chỉ nghe trên IP nội bộ/VPN (ADMIN_BIND) — không ra Internet.
+#   - WSS 8089 chỉ nghe 127.0.0.1; nginx nhận wss://DOMAIN/ws (443, chứng chỉ Let's Encrypt) và CHỈ chuyển tiếp /ws.
+#   - fail2ban đọc security.log của Asterisk, chặn IP dò mật khẩu SIP.
+#   - coturn (TURN) bật bằng --profile turn, cho trình duyệt ở mạng chặn UDP.
+# ============================================================
+services:
+  db:
+    ports: !override     # !override = thay danh sách cổng (!reset chỉ xóa trắng)
+      # Chỉ trong máy chủ: Asterisk (host network) vào qua 127.0.0.1; quản trị viên dùng SSH tunnel.
+      - "127.0.0.1:5432:5432"
+
+  asterisk:
+    network_mode: host
+    # Chế độ host dùng hostname của máy chủ (Docker không cho đặt riêng).
+    # Hostname máy chủ PHẢI bắt đầu bằng chữ cái (vd ip-10-0-1-5, pbx-01) — xem docs/trien-khai-cloud.md.
+    hostname: !reset null
+    ports: !reset []
+    environment:
+      DB_HOST: 127.0.0.1                                   # db publish 127.0.0.1:5432 (ở trên)
+      LOCAL_IP: ${PRIVATE_IP:?Chưa đặt PRIVATE_IP (IP card mạng của máy chủ) trong .env}
+      AST_ADMIN_BIND: ${ADMIN_BIND:?Chưa đặt ADMIN_BIND (IP nội bộ/VPN cho AMI/ARI) trong .env}
+      AST_WSS_BIND: 127.0.0.1
+
+  # Cổng vào duy nhất cho trình duyệt: https/wss 443 -> chỉ /ws của Asterisk. Cổng 80 cho Let's Encrypt.
+  nginx:
+    image: nginx:1.27-alpine
+    container_name: pbx-nginx
+    restart: unless-stopped
+    network_mode: host
+    depends_on: [asterisk]
+    environment:
+      DOMAIN: ${DOMAIN:?Chưa đặt DOMAIN trong .env}
+    volumes:
+      - ./cloud/nginx/templates:/etc/nginx/templates:ro    # envsubst ${DOMAIN} -> /etc/nginx/conf.d
+      - letsencrypt:/etc/letsencrypt:ro
+      - certbot-www:/var/www/certbot:ro
+    # Nạp lại mỗi 6 giờ để dùng chứng chỉ mới sau khi certbot gia hạn
+    command: ["/bin/sh", "-c", "while :; do sleep 6h; nginx -s reload; done & exec /docker-entrypoint.sh nginx -g 'daemon off;'"]
+
+  # Gia hạn chứng chỉ Let's Encrypt mỗi 12 giờ (chỉ gia hạn khi còn < 30 ngày).
+  # Cấp lần đầu: xem docs/trien-khai-cloud.md (certonly --standalone, TRƯỚC khi nginx chạy).
+  certbot:
+    image: certbot/certbot:latest
+    container_name: pbx-certbot
+    restart: unless-stopped
+    network_mode: host
+    volumes:
+      - letsencrypt:/etc/letsencrypt
+      - certbot-www:/var/www/certbot
+    entrypoint: ["/bin/sh", "-c", "trap exit TERM; while :; do certbot renew -q --webroot -w /var/www/certbot; sleep 12h & wait $${!}; done"]
+
+  # Chặn IP dò mật khẩu SIP / gọi máy lẻ không tồn tại (đọc log trong volume astlogs).
+  fail2ban:
+    image: crazymax/fail2ban:latest
+    container_name: pbx-fail2ban
+    restart: unless-stopped
+    network_mode: host
+    cap_add: [NET_ADMIN, NET_RAW]
+    environment:
+      TZ: ${TZ}
+      F2B_LOG_TARGET: STDOUT
+      F2B_DB_PURGE_AGE: 30d
+    volumes:
+      - ./cloud/fail2ban/jail.d:/data/jail.d:ro
+      - f2bdata:/data/db
+      - astlogs:/var/log/asterisk:ro
+
+  # TURN cho trình duyệt ở mạng chặn UDP (4G/công ty). Bật: --profile turn. Softphone SDK phải khai báo iceServers.
+  coturn:
+    image: coturn/coturn:latest
+    container_name: pbx-coturn
+    restart: unless-stopped
+    network_mode: host
+    profiles: [turn]
+    command:
+      - -n
+      - --log-file=stdout
+      - --listening-port=3478
+      - --external-ip=${HOST_IP}/${PRIVATE_IP}
+      - --realm=${DOMAIN}
+      - --lt-cred-mech
+      - --user=${TURN_USER:-pbxturn}:${TURN_PASSWORD:-chua_dat_TURN_PASSWORD}   # đặt TURN_PASSWORD trong .env khi bật turn
+      - --min-port=${TURN_MIN_PORT:-49160}
+      - --max-port=${TURN_MAX_PORT:-49360}
+      - --fingerprint
+      - --no-cli
+      - --no-multicast-peers
+      - --no-tlsv1
+      - --no-tlsv1_1
+
+volumes:
+  letsencrypt:
+  certbot-www:
+  f2bdata:

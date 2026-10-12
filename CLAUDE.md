@@ -34,6 +34,7 @@ Thoại **không** đi qua Gateway. Cần một cửa cho cả cuộc gọi thì
 | Context | `from-internal` (người, web), `from-ai` (chỉ tới máy lẻ 100–599 và group 600–999), `from-trunk` (tra DID) |
 | Phím bấm | `dtmf_mode=rfc4733` mọi máy lẻ |
 | Máy web | `webrtc=yes`, `transport=transport-wss`, cổng WSS 8089 (http.conf, chứng chỉ tự ký ở lab) |
+| Transport SIP | `transport-udp` 5060/udp · `transport-tcp` 5060/tcp · `transport-tls` 5061/tcp (mã hóa báo hiệu, cùng chứng chỉ WSS) · `transport-wss` 8089. Máy **softphone KHÔNG đặt `transport`** (Asterisk gửi theo đường máy đã đăng ký → dùng được cả UDP/TCP/TLS). Đặt `transport-udp` mà máy đăng ký qua TCP/TLS → Asterisk gửi OPTIONS/INVITE bằng UDP → `Unavail`, không nhận cuộc gọi (đã thử 12/10/2026) |
 | Một máy lẻ | 3 đối tượng sorcery `aor`, `auth`, `endpoint` cùng `id` trong astdb (khóa `/pjsip/{loại}/{số}`, file `/var/lib/asterisk/astdb/astdb.sqlite3`, volume `astdb` — **phải sao lưu**). Bảng `ps_*` chỉ còn là bản lưu của dữ liệu cũ |
 | Mật khẩu máy lẻ | Không lưu mật khẩu gốc. Đối tượng `auth`: `auth_type=md5`, `realm=asterisk`, `md5_cred=md5(username:asterisk:mật_khẩu)`, `password` rỗng. Gateway tự tính md5_cred khi tạo/đổi mật khẩu. Đổi `default_realm` = phải tính lại mọi md5_cred |
 | Mật khẩu ARI | `ari.conf` lưu crypt SHA-512 (entrypoint băm từ `ARI_PASSWORD`). AMI buộc lưu dạng gốc (giới hạn của Asterisk) |
@@ -144,7 +145,8 @@ Checklist triển khai đầy đủ (kèm triệu chứng khi làm sai): [docs/l
 
 - `modules.conf`: `preload => res_odbc.so`, `preload => res_config_odbc.so` (Ubuntu mặc định noload), `noload => chan_sip.so`, tắt `app_voicemail_odbc.so`, `app_voicemail_imap.so`.
 - `queue_members` cần cột `reason_paused` (Asterisk 20).
-- `entrypoint.sh` dùng `envsubst` với **danh sách biến cố định** để không thay `${EXTEN}` trong dialplan. Thêm biến mới = thêm vào `VARS`.
+- `entrypoint.sh` dùng `envsubst` với **danh sách biến cố định** để không thay `${EXTEN}` trong dialplan. Thêm biến mới = thêm vào `VARS`. `entrypoint.sh` nằm trong image → đổi nó phải `up -d --build` (restart dùng entrypoint cũ).
+- Cloud: `docker-compose.cloud.yml` chồng lên file gốc ([docs/trien-khai-cloud.md](docs/trien-khai-cloud.md)). Asterisk `network_mode: host`; `LOCAL_IP` (= `PRIVATE_IP`) thay `hostname -i`; `AST_ADMIN_BIND` (AMI/ARI, = `ADMIN_BIND` nội bộ) và `AST_WSS_BIND` (= `127.0.0.1`, sau nginx) — mặc định `0.0.0.0` cho lab. Ghép compose: thay danh sách dùng `!override`, `!reset` chỉ xóa trắng.
 - Docker bridge: `external_media_address`/`external_signaling_address` = `HOST_IP`; `local_net` = `127.0.0.1/32` + `${CONTAINER_IP}/32` (IP của chính Asterisk). Thiếu IP container thì Asterisk KHÔNG thay IP âm thanh trong SDP (vẫn `c=IN IP4 172.x`) → softphone thường (Linphone, MicroSIP) mất tiếng; máy web vẫn chạy nhờ ICE. KHÔNG thêm dải LAN (192.168.x), KHÔNG dùng cả dải `172.16.0.0/12` (chứa cổng Docker `172.x.0.1` = nguồn của softphone cùng máy/Docker Desktop → Contact/SDP là IP container → ngắt ở giây 32).
 - Container Asterisk có `hostname: pbx-asterisk` (bắt đầu bằng chữ cái). Hostname mặc định = mã container, bắt đầu bằng chữ số thì sai chuẩn SIP trong From/Contact qua WebSocket → JsSIP bỏ gói → máy web `Unavail`, không nhận được cuộc gọi.
 - WebRTC trong Docker: `rtp.conf` có `[ice_host_candidates]` `${CONTAINER_IP} => ${HOST_IP}` (entrypoint lấy `CONTAINER_IP` bằng `hostname -i`). Thiếu thì Asterisk gửi ICE candidate 172.x → trình duyệt trên máy có card ảo (Docker Desktop/WSL) chọn nhầm đường, Asterisk không nhận tiếng (channelstats Receive = 0).

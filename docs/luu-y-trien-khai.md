@@ -120,6 +120,16 @@ Hai lỗi âm thanh đã gặp, cả hai do Asterisk nằm trong mạng Docker `
   → *Linphone báo `Error during connection`, log Asterisk trống; log Linphone: `udp bind() failed ... port 5060`.*
 - [ ] Sửa transport PJSIP phải **restart container**, `reload` không đủ.
 
+### SIP qua TCP / TLS (softphone)
+
+- [ ] Cụm mở `5060/udp`, `5060/tcp`, `5061/tcp` (TLS). Softphone chọn Transport TCP hoặc TLS; TLS ở lab dùng chứng chỉ tự ký → bật
+  "không kiểm tra chứng chỉ" trên softphone hoặc cài chứng chỉ (`/etc/asterisk/keys/asterisk.crt`).
+- [ ] Máy lẻ softphone **không đặt thuộc tính `transport`** (hoặc đặt đúng loại máy đang dùng). `transport` ép MỌI gói Asterisk chủ động
+  gửi đi qua transport đó, kể cả khi máy đã đăng ký bằng đường khác.
+  → *Máy `transport=transport-udp` đăng ký qua TCP: REGISTER `200 OK` nhưng contact `Unavail`, gọi tới thất bại;
+  `pjsip set logger on` thấy `Transmitting SIP request ... to UDP:<ip>:<cổng TCP của máy>`.*
+- [ ] TLS chỉ mã hóa **báo hiệu**. Âm thanh vẫn RTP thường trừ khi máy lẻ đặt `media_encryption=sdes` và softphone bật SRTP.
+
 ## 7. Máy web (WebRTC: máy lẻ `webrtc=yes`, số 100–599 như người dùng thường)
 
 - [ ] Ô WSS là **`wss://<IP>:8089/ws`**, không phải `https://...` (lỗi `Invalid scheme in WebSocket Server URL`).
@@ -141,7 +151,7 @@ Hai lỗi âm thanh đã gặp, cả hai do Asterisk nằm trong mạng Docker `
 | Đã sửa | Lệnh |
 | --- | --- |
 | Bất kỳ (sau khi chép) | `bash scripts/deploy.sh` |
-| `asterisk/Dockerfile`, `entrypoint.sh`, `db/Dockerfile` | `bash scripts/deploy.sh` (có `--build`) |
+| `asterisk/Dockerfile`, `entrypoint.sh`, `db/Dockerfile` | `bash scripts/deploy.sh` (có `--build`). `entrypoint.sh` nằm **trong image**: `restart` chạy entrypoint cũ với template mới → biến mới (vd `${AST_ADMIN_BIND}`) không được thay → HTTP/ARI/WSS không nghe cổng (curl trả `000`) |
 | `asterisk/conf/*` | `docker compose restart asterisk` |
 | Chỉ `extensions.conf` (không rớt cuộc gọi) | `docker compose exec asterisk cp /opt/pbx-conf/extensions.conf /etc/asterisk/` rồi `asterisk -rx "dialplan reload"` |
 | `.env`, `docker-compose.yml` | `docker compose up -d` |

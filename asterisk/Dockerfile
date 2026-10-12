@@ -17,5 +17,5 @@ COPY conf/ /opt/pbx-conf/
 COPY entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 
-EXPOSE 5060/udp 5038 8088 8089
+EXPOSE 5060/udp 5060/tcp 5061/tcp 5038 8088 8089
 ENTRYPOINT ["/entrypoint.sh"]

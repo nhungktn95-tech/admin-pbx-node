@@ -1,0 +1,20 @@
+# fail2ban cho Asterisk (docker-compose.cloud.yml). Đọc log trong volume astlogs:
+#   security.log : SecurityEvent sai mật khẩu, máy lẻ không tồn tại, bị ACL chặn (entrypoint.sh bật log này)
+#   messages.log : "Request 'REGISTER' ... failed ... Failed to authenticate / No matching endpoint found"
+# Filter "asterisk" có sẵn trong fail2ban.
+[asterisk]
+enabled  = true
+filter   = asterisk
+logpath  = /var/log/asterisk/security.log
+           /var/log/asterisk/messages.log
+backend  = auto
+# 5 lần sai trong 10 phút -> chặn 1 giờ; tái phạm thì thời gian chặn tăng gấp đôi mỗi lần, tối đa 1 tuần
+maxretry = 5
+findtime = 10m
+bantime  = 1h
+bantime.increment = true
+bantime.maxtime   = 1w
+# Asterisk chạy network_mode host: chặn ở chain INPUT của máy chủ, mọi cổng (SIP, RTP...)
+banaction = iptables-allports[chain=INPUT]
+# KHÔNG chặn: máy chủ (nginx chuyển WSS vào từ 127.0.0.1). Thêm IP văn phòng/Gateway nếu cần, cách nhau dấu cách.
+ignoreip = 127.0.0.1/8 ::1

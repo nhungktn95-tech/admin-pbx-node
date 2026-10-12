@@ -40,6 +40,8 @@ services:
     env_file: .env
     ports:
       - "5060:5060/udp"                                           # SIP: softphone, Media AI, nhà mạng
+      - "5060:5060/tcp"                                           # SIP qua TCP (ổn định hơn qua NAT)
+      - "5061:5061/tcp"                                           # SIP qua TLS (mã hóa báo hiệu)
       - "${RTP_START}-${RTP_END}:${RTP_START}-${RTP_END}/udp"     # RTP: âm thanh
       - "8089:8089"                                               # WSS: Softphone SDK trong trình duyệt
       - "${ADMIN_BIND:-0.0.0.0}:5038:5038"                        # AMI: chỉ cho Gateway

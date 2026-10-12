@@ -1,4 +1,6 @@
-; Phần tĩnh của PJSIP: chỉ có transport. Máy lẻ nằm trong database, KHÔNG khai báo ở đây.
+; Phần tĩnh của PJSIP: chỉ có transport. Máy lẻ nằm trong astdb (Gateway tạo qua ARI), KHÔNG khai báo ở đây.
+; Transport: udp 5060, tcp 5060, tls 5061 (softphone, nhà mạng) · wss 8089 (trình duyệt).
+; Máy lẻ nhận REGISTER qua mọi transport; thuộc tính "transport" của máy lẻ chỉ quyết định đường Asterisk chủ động gửi đi.
 [global]
 type = global
 user_agent = pbx-node
@@ -19,6 +21,32 @@ local_net = 127.0.0.1/32
 ; Chỉ /32, KHÔNG dùng cả dải 172.16.0.0/12: dải đó chứa cổng mạng Docker (172.x.0.1) - nguồn của softphone chạy
 ; cùng máy với Docker (và mọi softphone khi dùng Docker Desktop) -> Asterisk coi là nội bộ, gửi Contact/c= là IP
 ; container -> không có ACK, cuộc gọi ngắt ở giây 32.
+local_net = ${CONTAINER_IP}/32
+
+; Softphone cài máy qua TCP 5060: một kết nối giữ suốt phiên -> ổn định hơn UDP qua NAT, không giới hạn kích thước gói.
+; Asterisk gửi lại qua đúng kết nối máy đã mở (contact ;transport=tcp).
+[transport-tcp]
+type = transport
+protocol = tcp
+bind = 0.0.0.0:5060
+external_media_address     = ${HOST_IP}
+external_signaling_address = ${HOST_IP}
+local_net = 127.0.0.1/32
+local_net = ${CONTAINER_IP}/32
+
+; Softphone cài máy qua TLS 5061: MÃ HÓA phần báo hiệu SIP (mật khẩu digest, số gọi, SDP).
+; Âm thanh KHÔNG tự mã hóa theo: muốn mã hóa âm thanh thì máy lẻ đặt media_encryption=sdes (SRTP) và softphone bật SRTP.
+; Chứng chỉ: cùng chứng chỉ WSS (tự ký ở lab, SAN = IP:HOST_IP) - softphone phải tin chứng chỉ hoặc tắt kiểm tra.
+[transport-tls]
+type = transport
+protocol = tls
+bind = 0.0.0.0:5061
+cert_file = /etc/asterisk/keys/asterisk.crt
+priv_key_file = /etc/asterisk/keys/asterisk.key
+method = tlsv1_2
+external_media_address     = ${HOST_IP}
+external_signaling_address = ${HOST_IP}
+local_net = 127.0.0.1/32
 local_net = ${CONTAINER_IP}/32
 
 ; Softphone SDK trong trình duyệt: SIP qua WebSocket bảo mật (WSS).

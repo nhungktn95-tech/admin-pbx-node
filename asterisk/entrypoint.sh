@@ -5,8 +5,11 @@ set -e
 #    Chỉ thay đúng các biến liệt kê dưới đây, để không đụng tới ${EXTEN}... trong dialplan.
 VARS='${HOST_IP} ${DB_HOST} ${DB_PORT} ${DB_NAME} ${DB_USER} ${DB_PASSWORD} ${RTP_START} ${RTP_END}
       ${GATEWAY_IP} ${AMI_USER} ${AMI_SECRET} ${AMI_PERMIT_EXTRA} ${ARI_USER} ${ARI_PASSWORD_HASH}
-      ${CONTAINER_IP}'
+      ${CONTAINER_IP} ${AST_ADMIN_BIND} ${AST_WSS_BIND}'
 : "${GATEWAY_IP:=127.0.0.1}"
+# Địa chỉ nghe của AMI/ARI và WSS. Lab/Docker bridge: 0.0.0.0. docker-compose.cloud.yml đặt IP nội bộ / 127.0.0.1.
+: "${AST_ADMIN_BIND:=0.0.0.0}"
+: "${AST_WSS_BIND:=0.0.0.0}"
 : "${AMI_PERMIT_EXTRA:=172.16.0.0/255.240.0.0}"
 : "${AMI_USER:=gateway}"
 : "${ARI_USER:=gateway}"
@@ -15,9 +18,11 @@ if [ -z "$AMI_SECRET" ] || [ -z "$ARI_PASSWORD" ]; then
 fi
 # ari.conf chỉ chứa mật khẩu đã băm (crypt SHA-512), không chứa mật khẩu gốc
 ARI_PASSWORD_HASH=$(openssl passwd -6 "$ARI_PASSWORD")
-# IP của container trong mạng Docker (đổi mỗi lần tạo lại container) -> rtp.conf đổi thành HOST_IP khi gửi ICE candidate
-CONTAINER_IP=$(hostname -i | awk '{print $1}')
-export GATEWAY_IP AMI_PERMIT_EXTRA AMI_USER ARI_USER ARI_PASSWORD_HASH CONTAINER_IP
+# IP của chính Asterisk (dùng cho local_net và ICE candidate -> HOST_IP).
+#   Docker bridge: IP container (đổi mỗi lần tạo lại container), lấy bằng hostname -i.
+#   network_mode host (cloud): đặt LOCAL_IP = IP card mạng của máy chủ; hostname -i ở chế độ này hay trả 127.0.1.1.
+CONTAINER_IP=${LOCAL_IP:-$(hostname -i | awk '{print $1}')}
+export GATEWAY_IP AMI_PERMIT_EXTRA AMI_USER ARI_USER ARI_PASSWORD_HASH CONTAINER_IP AST_ADMIN_BIND AST_WSS_BIND
 for f in /opt/pbx-conf/*; do
   name=$(basename "$f")
   case "$name" in
@@ -60,6 +65,10 @@ sed -i -e 's|^\[directories\](!)|[directories]|' -e 's|^astdbdir *=>.*|astdbdir 
 mkdir -p /etc/asterisk/gateway
 [ -f /etc/asterisk/gateway/queues-groups.conf ] || cp /opt/pbx-conf/queues-groups.conf /etc/asterisk/gateway/queues-groups.conf
 chown -R asterisk:asterisk /etc/asterisk/gateway 2>/dev/null || true
+
+# Log sự kiện bảo mật (sai mật khẩu, máy lẻ không tồn tại...) ra /var/log/asterisk/security.log (volume astlogs)
+# để fail2ban đọc và chặn IP dò mật khẩu (docker-compose.cloud.yml). logger.conf của gói Ubuntu không bật mục này.
+grep -q '^security.log' /etc/asterisk/logger.conf || sed -i '/^\[logfiles\]/a security.log => security' /etc/asterisk/logger.conf
 
 # Thư mục ghi âm cuộc gọi (volume recordings) - cũng là thư mục ghi âm của ARI
 mkdir -p /var/spool/asterisk/recording

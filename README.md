@@ -42,6 +42,9 @@ pbx-node/
 │  ├─ 01-schema.sql            # tạo bảng: ps_endpoints, ps_auths, ps_aors, queues, queue_members, cdr
 │  ├─ 02-seed.sql              # dữ liệu mẫu: 101, 102, 201 (+ máy web 150, 151), group 600
 │  └─ 03-gateway-user.sh       # user DB riêng cho PBX Gateway
+├─ docker-compose.cloud.yml    # chồng lên docker-compose.yml khi chạy trên cloud (docs/trien-khai-cloud.md)
+├─ .env.cloud.example          # mẫu .env cho cloud
+├─ cloud/                      # nginx (chỉ chuyển tiếp /ws), fail2ban (chặn dò mật khẩu SIP)
 ├─ scripts/check-gateway-access.sh   # chạy trên máy Gateway để kiểm tra kết nối
 ├─ scripts/chuyen-may-le-sang-astdb.sh # chuyển máy lẻ từ bảng ps_* sang astdb (chạy một lần)
 ├─ scripts/chuyen-group-sang-queues-conf.sh # chuyển group từ bảng queues sang queues-groups.conf (chạy một lần)
@@ -55,6 +58,8 @@ File `.tmpl` chứa biến như `${HOST_IP}`; lúc container khởi động, `en
 ## Chuẩn bị
 
 > **Triển khai lên máy chủ Ubuntu:** đọc [docs/luu-y-trien-khai.md](docs/luu-y-trien-khai.md) trước (chép code, quyền file, firewall, NAT Docker, WSS, xử lý mất tiếng).
+>
+> **Triển khai trên cloud (IP public, mở ra Internet):** dùng thêm `docker-compose.cloud.yml` + `.env.cloud.example`, làm theo [docs/trien-khai-cloud.md](docs/trien-khai-cloud.md) (fail2ban, nginx + Let's Encrypt cho WSS, AMI/ARI chỉ ở mạng nội bộ, `network_mode: host`, TURN tùy chọn).
 
 1. **Docker Desktop** (Windows/macOS) hoặc Docker Engine (Linux).
 2. **Softphone** trên 2 thiết bị, cùng mạng Wi-Fi/LAN với máy chạy Docker:
