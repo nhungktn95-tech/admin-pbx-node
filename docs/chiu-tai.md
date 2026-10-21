@@ -10,7 +10,7 @@ và thêm công cụ thử tải. Mọi biến mới đều có giá trị mặc
 | 2 | Giới hạn file mở (ulimit) thấp → "Too many open files" | `docker-compose.yml`, `asterisk/entrypoint.sh` | 65536 + cảnh báo nếu thấp |
 | 3 | Log Docker và log Asterisk phình mãi | `docker-compose.yml`, `docker-compose.cloud.yml`, `asterisk/entrypoint.sh` | Docker 5×20 MB; Asterisk xoay vòng hằng ngày, giữ 14 ngày |
 | 4 | Ghi âm làm đầy ổ, kéo DB/astdb/log hỏng theo | `docker-compose.yml`, `asterisk/entrypoint.sh` | Cảnh báo ở 85 %; KHÔNG tự xóa ghi âm |
-| 5 | Sự kiện AMI RTCP tràn Gateway → mất sự kiện `Cdr` | `asterisk/conf/manager.conf.tmpl` | Bỏ `RTCPSent`/`RTCPReceived` |
+| 5 | Sự kiện AMI RTCP có thể tràn kết nối AMI (phòng hờ) | `asterisk/conf/manager.conf.tmpl` | Bỏ `RTCPSent`/`RTCPReceived` |
 | 6 | Mức log `-vvv` quá chi tiết khi tải cao | `asterisk/entrypoint.sh` | `AST_VERBOSE=3` (như cũ), thật nên 0–1 |
 | 7 | Chưa có cách đo sức chịu tải | `asterisk/conf/extensions.conf` (`*45`), `scripts/load-test.sh`, `scripts/load-test/uac-auth.xml` | — |
 
@@ -86,9 +86,13 @@ và nằm chung ổ với PostgreSQL, astdb, log → ổ đầy là hỏng cả 
 Tiến trình dọn dẹp là hàm `housekeeping` trong `entrypoint.sh`, chạy nền ngay trước khi `exec asterisk`,
 nên là tiến trình con của Asterisk và dừng cùng container.
 
-## 5. Sự kiện AMI tràn kết nối Gateway
+## 5. Sự kiện AMI tràn kết nối Gateway (phòng hờ)
 
-**Vấn đề.** Tài khoản AMI của Gateway có quyền đọc lớp `reporting`. Lớp này gồm `RTCPSent`/`RTCPReceived`: Asterisk gửi vài giây
+> **Đính chính (21/10/2026, sau khi đọc code pbx-gateway):** Gateway đăng nhập AMI với `Events: cdr,system`
+> (`GW_AMI_EVENTS`, mặc định) nên **hiện tại không nhận RTCP** — vấn đề dưới đây chỉ xảy ra khi đặt `GW_AMI_EVENTS=on`
+> hoặc có client AMI khác dùng cùng tài khoản. Bộ lọc giữ lại như lớp bảo vệ thứ hai, không phải sửa lỗi đang có.
+
+**Vấn đề (nếu nhận mọi sự kiện).** Tài khoản AMI của Gateway có quyền đọc lớp `reporting`. Lớp này gồm `RTCPSent`/`RTCPReceived`: Asterisk gửi vài giây
 một lần cho **mỗi** kênh có âm thanh → 200 cuộc ≈ hàng trăm sự kiện/giây mà Gateway không dùng. Nếu Gateway đọc không kịp quá
 `writetimeout = 5000` ms, Asterisk ngắt kết nối AMI → các sự kiện `Cdr` trong lúc mất kết nối bị mất (lịch sử thiếu cuộc gọi).
 

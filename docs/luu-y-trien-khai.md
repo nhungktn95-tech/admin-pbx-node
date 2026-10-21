@@ -130,7 +130,7 @@ Hai lỗi âm thanh đã gặp, cả hai do Asterisk nằm trong mạng Docker `
   `pjsip set logger on` thấy `Transmitting SIP request ... to UDP:<ip>:<cổng TCP của máy>`.*
 - [ ] TLS chỉ mã hóa **báo hiệu**. Âm thanh vẫn RTP thường trừ khi máy lẻ đặt `media_encryption=sdes` và softphone bật SRTP.
 
-## 7. Máy web (WebRTC: máy lẻ `webrtc=yes`, số 100–599 như người dùng thường)
+## 7. Máy web (WebRTC: máy lẻ `webrtc=yes`, số như người dùng thường)
 
 - [ ] Ô WSS là **`wss://<IP>:8089/ws`**, không phải `https://...` (lỗi `Invalid scheme in WebSocket Server URL`).
 - [ ] Dùng máy lẻ **150/151** (`webrtc=yes`), không dùng 101/102 (máy UDP, thiếu DTLS/ICE).
