@@ -371,6 +371,17 @@ sửa bảng này **không** còn tác dụng. (`pjsip show endpoints` hiện m�
 
 Xem/sao lưu máy lẻ: `docker compose exec asterisk asterisk -rx "database show pjsip"`; sao lưu volume `astdb` như volume `pgdata`.
 
+## Chịu tải nhiều cuộc gọi
+
+Chi tiết và lý do từng thay đổi: [docs/chiu-tai.md](docs/chiu-tai.md).
+
+- Sức chứa do dải RTP quyết định: 4 cổng / cuộc gọi 2 bên. Lab 100 cổng ≈ 25 cuộc (chỉ thử chức năng); cloud 10000–20000 dư.
+  Khi khởi động, `docker compose logs asterisk | grep "Dải RTP"` in sức chứa.
+- Biến vận hành (đều có mặc định): `AST_VERBOSE`, `LOG_KEEP_DAYS`, `DISK_WARN_PERCENT`, `RECORDINGS_PATH`, `RECORDING_KEEP_DAYS` — xem `.env.example`.
+- Ổ gần đầy: `docker compose logs asterisk | grep "don-dep"`.
+- Thử tải (máy Linux khác, `sudo apt install sip-tester`): `ARI_HOST=<IP ARI> ./scripts/load-test.sh <IP SIP> 100 60 10 .env`
+  — gọi số `*45`, tự tạo/xóa máy lẻ thử 599. 1 cuộc thử ≈ ½ cuộc gọi thật.
+
 ## Lộ trình tiếp theo
 
 | Bước | Nội dung | Ở đâu |

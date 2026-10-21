@@ -10,6 +10,14 @@
 #   - fail2ban đọc security.log của Asterisk, chặn IP dò mật khẩu SIP.
 #   - coturn (TURN) bật bằng --profile turn, cho trình duyệt ở mạng chặn UDP.
 # ============================================================
+# Giới hạn log Docker cho các service chỉ có ở cloud (db, asterisk lấy từ docker-compose.yml). Anchor YAML không dùng
+# chung được giữa 2 file nên khai báo lại.
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "20m"
+    max-file: "5"
+
 services:
   db:
     ports: !override     # !override = thay danh sách cổng (!reset chỉ xóa trắng)
@@ -32,6 +40,7 @@ services:
   nginx:
     image: nginx:1.27-alpine
     container_name: pbx-nginx
+    logging: *default-logging
     restart: unless-stopped
     network_mode: host
     depends_on: [asterisk]
@@ -49,6 +58,7 @@ services:
   certbot:
     image: certbot/certbot:latest
     container_name: pbx-certbot
+    logging: *default-logging
     restart: unless-stopped
     network_mode: host
     volumes:
@@ -60,6 +70,7 @@ services:
   fail2ban:
     image: crazymax/fail2ban:latest
     container_name: pbx-fail2ban
+    logging: *default-logging
     restart: unless-stopped
     network_mode: host
     cap_add: [NET_ADMIN, NET_RAW]
@@ -76,6 +87,7 @@ services:
   coturn:
     image: coturn/coturn:latest
     container_name: pbx-coturn
+    logging: *default-logging
     restart: unless-stopped
     network_mode: host
     profiles: [turn]

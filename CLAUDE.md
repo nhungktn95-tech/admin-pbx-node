@@ -48,6 +48,22 @@ Thoại **không** đi qua Gateway. Cần một cửa cho cả cuộc gọi thì
 - Tiếp theo nằm ở repo `pbx-gateway` (Bước 2: Server Management).
 - **Bước G2 — Gateway không dùng DB của cụm (05/10/2026): đã làm, thử trên cụm Docker cục bộ** (xem mục 4b). Chưa áp lên lab-02.
 
+## 4d. Chịu tải (21/10/2026, đã thử với Asterisk 20.6 + SIPp)
+
+Chi tiết: [docs/chiu-tai.md](docs/chiu-tai.md). Không đổi quyết định mục 2 (vẫn KHÔNG tự xóa ghi âm nếu chưa đặt `RECORDING_KEEP_DAYS`).
+
+| File | Thay đổi |
+| --- | --- |
+| `docker-compose.yml` | `x-logging` (json-file 5×20 MB) cho mọi service; asterisk `ulimits nofile 65536`; ghi âm `${RECORDINGS_PATH:-recordings}` |
+| `docker-compose.cloud.yml` | `x-logging` cho nginx, certbot, fail2ban, coturn (anchor không dùng chung giữa 2 file) |
+| `asterisk/entrypoint.sh` | `rotatestrategy = timestamp`; in sức chứa RTP; cảnh báo ulimit < 65536; tiến trình nền `housekeeping` (mỗi giờ: cảnh báo ổ ≥ `DISK_WARN_PERCENT`; mỗi ngày: `logger rotate` + xóa log > `LOG_KEEP_DAYS`; tùy chọn xóa ghi âm > `RECORDING_KEEP_DAYS`); `AST_VERBOSE` (mặc định 3) thay `-vvv` |
+| `asterisk/conf/manager.conf.tmpl` | `eventfilter = !Event: RTCP` (bỏ RTCPSent/RTCPReceived) |
+| `asterisk/conf/extensions.conf` | `*45` đích thử tải (MixMonitor không `b`, nhạc chờ, xóa file khi gác máy qua `[sub-loadtest-end]`) |
+| `scripts/load-test.sh`, `scripts/load-test/uac-auth.xml` (mới) | SIPp gọi `*45` bằng máy lẻ thử 599 tạo/xóa qua ARI |
+| `.env.example`, `.env.cloud.example` | sửa ghi chú sức chứa RTP (4 cổng/cuộc 2 bên); thêm biến vận hành |
+
+Quy ước số: `*45` = thử tải (cùng nhóm `*4x` số thử). Biến mới KHÔNG cần thêm vào `VARS` (không dùng trong `.tmpl`).
+
 ## 4c. Bước G3 — group trong queues-groups.conf, Gateway quản lý qua AMI (06/10/2026, đã thử trên Docker cục bộ)
 
 Theo phương án [docs/phuong-an-queue-qua-ami.md](docs/phuong-an-queue-qua-ami.md) (cách 1). Khác phương án: **không dùng symlink** — AMI chặn

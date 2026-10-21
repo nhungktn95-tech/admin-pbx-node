@@ -1,5 +1,13 @@
 # pbx-node: một cụm tổng đài = Asterisk + PostgreSQL (Realtime DB).
 # Không chạy code nghiệp vụ. PBX Gateway (repo riêng) chỉ kết nối AMI 5038 + ARI 8088 (không dùng DB của cụm).
+# Giới hạn log của Docker (docker logs) cho mọi service: tối đa 5 file x 20 MB / service, cũ tự xóa.
+# Không có mục này Docker giữ log mãi -> ổ đĩa đầy dần, nhất là khi tải cao (Asterisk ghi mỗi bước dialplan).
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "20m"
+    max-file: "5"
+
 services:
   db:
     build: ./db                  # postgres:16 + tzdata-legacy (xem db/Dockerfile)
@@ -19,6 +27,7 @@ services:
     ports:
       # Chỉ cho quản trị viên (Gateway không dùng nữa). Firewall chặn từ ngoài.
       - "${ADMIN_BIND:-0.0.0.0}:5432:5432"
+    logging: *default-logging
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${DB_USER} -d ${DB_NAME}"]
       interval: 5s
@@ -38,6 +47,13 @@ services:
       db:
         condition: service_healthy
     env_file: .env
+    logging: *default-logging
+    # Số file/socket Asterisk được mở cùng lúc. Mỗi kênh cần nhiều (RTP, RTCP, file ghi âm, timer...).
+    # Mặc định của Docker có thể chỉ 1024 -> "Too many open files" ở khoảng 100-200 cuộc gọi.
+    ulimits:
+      nofile:
+        soft: 65536
+        hard: 65536
     ports:
       - "5060:5060/udp"                                           # SIP: softphone, Media AI, nhà mạng
       - "5060:5060/tcp"                                           # SIP qua TCP (ổn định hơn qua NAT)
@@ -52,7 +68,9 @@ services:
       - astlogs:/var/log/asterisk
       - astdb:/var/lib/asterisk/astdb      # máy lẻ PJSIP (astdb.sqlite3) — PHẢI sao lưu
       - astconf:/etc/asterisk/gateway      # group (queues-groups.conf, Gateway sửa qua AMI UpdateConfig) — PHẢI sao lưu
-      - recordings:/var/spool/asterisk/recording   # file ghi âm cuộc gọi (KHÔNG tự xóa, theo dõi dung lượng ổ đĩa)
+      # File ghi âm. Mặc định volume "recordings". Đặt RECORDINGS_PATH trong .env = đường dẫn trên máy chủ
+      # (vd /data/recordings, nên là ổ riêng) để ghi âm đầy ổ không kéo theo DB, astdb, log.
+      - ${RECORDINGS_PATH:-recordings}:/var/spool/asterisk/recording
 
 volumes:
   pgdata:

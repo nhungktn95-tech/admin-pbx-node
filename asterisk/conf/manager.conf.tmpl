@@ -25,3 +25,8 @@ permit = ${AMI_PERMIT_EXTRA}
 read = system,call,agent,user,dtmf,reporting,cdr,config
 write = system,call,agent,user,originate,reporting,config
 writetimeout = 5000
+; Bỏ sự kiện RTCPSent/RTCPReceived (lớp "reporting"): Asterisk gửi vài giây một lần cho MỖI kênh đang có âm thanh
+; -> 200 cuộc gọi = hàng trăm sự kiện/giây, Gateway đọc không kịp quá writetimeout thì bị ngắt AMI và mất sự kiện Cdr.
+; Gateway không dùng các sự kiện này. Cần chất lượng âm thanh thì dùng lệnh "pjsip show channelstats" khi cần.
+; Dấu ! = loại trừ; chỉ có bộ lọc loại trừ thì mọi sự kiện khác vẫn được gửi như cũ.
+eventfilter = !Event: RTCP
