@@ -5,7 +5,7 @@ ENV DEBIAN_FRONTEND=noninteractive
 RUN apt-get update \
  && apt-get install -y --no-install-recommends \
       asterisk asterisk-modules asterisk-core-sounds-en asterisk-moh-opsound-wav \
-      unixodbc odbc-postgresql gettext-base netcat-openbsd openssl tzdata \
+      unixodbc odbc-postgresql gettext-base netcat-openbsd openssl tzdata sqlite3 \
  && rm -rf /var/lib/apt/lists/*
 
 # Khai báo driver ODBC PostgreSQL (đường dẫn khác nhau giữa máy Intel và Apple Silicon)

@@ -76,6 +76,10 @@ grep -q '^rotatestrategy' /etc/asterisk/logger.conf || sed -i '/^\[general\]/a r
 mkdir -p /var/spool/asterisk/recording
 chown asterisk:asterisk /var/spool/asterisk/recording 2>/dev/null || true
 
+# Lời chào IVR ghi qua điện thoại (*46<số IVR>), volume astivr: /var/lib/asterisk/ivr/<số IVR>.wav (docs/ivr.md)
+mkdir -p /var/lib/asterisk/ivr
+chown asterisk:asterisk /var/lib/asterisk/ivr 2>/dev/null || true
+
 # 3. Chờ PostgreSQL sẵn sàng
 echo "Đang chờ database ${DB_HOST}:${DB_PORT}..."
 until nc -z "$DB_HOST" "$DB_PORT"; do sleep 1; done

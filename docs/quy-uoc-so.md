@@ -23,7 +23,7 @@ Cách giải: **tách hai việc đó ra.**
 | --- | --- | --- |
 | **1000–5999** | Máy lẻ — mọi loại (Softphone, Web, AI) | 5.000 |
 | **6000–8999** | Group | 3.000 |
-| **9000–9999** | Dành riêng (IVR, số hệ thống sau này) — tính là số nội bộ, không tạo máy lẻ / group được | 1.000 |
+| **9000–9999** | **IVR** (menu bấm phím, 26/10/2026 — [ivr.md](ivr.md)); không tạo máy lẻ / group trong dải này | 1.000 |
 | 100–599 / 600–999 | **Dải cũ, vẫn dùng** — máy đang có không phải đánh số lại | 500 / 400 |
 | `*43` `*44` `*45` | Số thử (âm thanh, phím bấm, thử tải) | — |
 
@@ -54,7 +54,6 @@ exten => _X.,1,NoOp(Goi ${EXTEN} tu ${CALLERID(num)})
 - Mọi nhánh nằm trong **cùng một extension** (chỉ nhảy nhãn) → CDR ghi đúng `dst` / `lastapp` như trước (đã kiểm tra, mục 6).
 - Gọi số không tồn tại sinh 1 dòng `WARNING func_pjsip_endpoint.c: Failed to retrieve information for endpoint '4321'` — bình thường.
 - Sau này thêm gọi ra ngoài (vd `_0X.` qua trunk): mẫu cụ thể hơn được Asterisk ưu tiên trước `_X.`, không phải sửa khối này.
-- `from-ai` (khi làm) dùng cùng cách tra cứu.
 - Chi phí: 2 lần tra cứu trong bộ nhớ mỗi cuộc gọi — không ảnh hưởng chịu tải.
 
 ## 4. pbx-gateway
@@ -135,7 +134,7 @@ bằng số gợi ý, group từ chối 1020, chọn thành viên hiện loại,
 không cuộn ngang, không lỗi JS. Mock server: `GET /numbering` và 5 trường hợp tạo đều đúng.
 
 **Chưa kiểm tra:** chưa chạy trên lab-02 / cụm thật; chưa gọi từ softphone/trình duyệt thật vào số 4 chữ số (SIPp thay
-thế); context `from-ai` chưa có trong dialplan nên chưa áp.
+thế). (22/10/2026: bỏ loại máy AI và context `from-ai` — chỉ còn máy softphone và máy web.)
 
 ## 7. Áp dụng
 

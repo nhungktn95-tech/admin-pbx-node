@@ -30,15 +30,17 @@ Thoại **không** đi qua Gateway. Cần một cửa cho cả cuộc gọi thì
 | Cấu hình | Máy lẻ PJSIP (endpoint/auth/aor): **astdb** của Asterisk, Gateway ghi qua ARI Push Configuration (G2). Group (queue): file `/etc/asterisk/gateway/queues-groups.conf` (volume `astconf`), Gateway sửa qua AMI `UpdateConfig` + `QueueReload` (G3). Hiệu lực ngay, không rớt cuộc gọi đang chờ. PostgreSQL chỉ còn bảng `cdr` |
 | Quản trị | Chỉ PBX Gateway. AMI/ARI chỉ mở cho IP Gateway (mạng nội bộ/VPN + firewall). DB 5432 chỉ cho quản trị viên |
 | User cho Gateway | AMI: `AMI_USER` (đọc có `cdr`; đọc/ghi `config` để quản lý group — sửa được MỌI file /etc/asterisk, nên AMI chỉ mở cho IP Gateway). ARI: `ARI_USER` (`read_only = no` để ghi máy lẻ). `GW_DB_USER` không còn dùng (giữ cho cụm cũ, có thể bỏ) |
-| Quy ước số | **Định tuyến theo tra cứu, không theo đầu số** (21/10/2026, thay quy ước 3 chữ số 08/10/2026 — [docs/quy-uoc-so.md](docs/quy-uoc-so.md)): dialplan `_X.` hỏi `QUEUE_EXISTS` → Queue, `PJSIP_ENDPOINT` → Dial, không có → "số không tồn tại" (183 + `ss-noservice`, không nhấc máy). Dải số chỉ là quy ước do **PBX Gateway** kiểm tra (`pbx.numbering.*`), mặc định **1000–5999 máy lẻ · 6000–8999 group · 9000–9999 dành riêng**, dải cũ **100–599 / 600–999 vẫn dùng**. Một số không được vừa là máy lẻ vừa là group (Gateway chặn; lỡ trùng thì group thắng). `*4x` số thử (`*43` âm thanh, `*44` phím bấm, `*45` thử tải). **Web hay softphone KHÔNG theo đầu số** — do thuộc tính máy lẻ (`webrtc`, `transport`), Admin UI hiện nhãn. **Không có dải số riêng cho AI.** |
-| Context | `from-internal` (người, web), `from-ai` (chỉ tới máy lẻ và group — làm theo cùng cách tra cứu như `from-internal`), `from-trunk` (tra DID) |
+| Quy ước số | **Định tuyến theo tra cứu, không theo đầu số** (21/10/2026, thay quy ước 3 chữ số 08/10/2026 — [docs/quy-uoc-so.md](docs/quy-uoc-so.md)): dialplan `_X.` hỏi `QUEUE_EXISTS` → Queue, astdb `ivr/<số>/default` → IVR, `PJSIP_ENDPOINT` → Dial, không có → "số không tồn tại" (183 + `ss-noservice`, không nhấc máy). Dải số chỉ là quy ước do **PBX Gateway** kiểm tra (`pbx.numbering.*`), mặc định **1000–5999 máy lẻ · 6000–8999 group · 9000–9999 IVR** (26/10/2026), dải cũ **100–599 / 600–999 vẫn dùng**. Một số không được vừa là máy lẻ vừa là group (Gateway chặn; lỡ trùng thì group thắng). `*4x` số thử (`*43` âm thanh, `*44` phím bấm, `*45` thử tải) · `*46<số IVR>` ghi lời chào IVR. **Web hay softphone KHÔNG theo đầu số** — do thuộc tính máy lẻ (`webrtc`, `transport`), Admin UI hiện nhãn. |
+| Loại máy lẻ | **Chỉ 2 loại: softphone (SIP UDP/TCP/TLS) và máy web (WebRTC)** (22/10/2026: **bỏ loại AI và context `from-ai`**) |
+| IVR | (26/10/2026, [docs/ivr.md](docs/ivr.md)) Menu trong **astdb** `ivr/<số>/{default,opt/<phím>,timeout,retries,prompt}`, Gateway quản lý qua AMI `DBPut`/`DBDel`/`DBDelTree`, hiệu lực ngay. Lời chào ghi qua điện thoại `*46<số IVR>` (PIN `IVR_RECORD_PIN`) → `/var/lib/asterisk/ivr/<số>.wav` (volume `astivr`, **sao lưu**). Không bấm/bấm sai: nhắc lại `retries` (2) lần rồi đi `default`. Lịch sử: `dst` = đích cuối, `userfield` = `ivr:<số>=<phím>;...` |
+| Context | `from-internal` (mọi máy lẻ softphone và web) · `from-trunk` (tra DID, khi làm trunk nhà mạng) |
 | Phím bấm | `dtmf_mode=rfc4733` mọi máy lẻ |
 | Máy web | `webrtc=yes`, `transport=transport-wss`, cổng WSS 8089 (http.conf, chứng chỉ tự ký ở lab) |
 | Transport SIP | `transport-udp` 5060/udp · `transport-tcp` 5060/tcp · `transport-tls` 5061/tcp (mã hóa báo hiệu, cùng chứng chỉ WSS) · `transport-wss` 8089. Máy **softphone KHÔNG đặt `transport`** (Asterisk gửi theo đường máy đã đăng ký → dùng được cả UDP/TCP/TLS). Đặt `transport-udp` mà máy đăng ký qua TCP/TLS → Asterisk gửi OPTIONS/INVITE bằng UDP → `Unavail`, không nhận cuộc gọi (đã thử 12/10/2026) |
 | Một máy lẻ | 3 đối tượng sorcery `aor`, `auth`, `endpoint` cùng `id` trong astdb (khóa `/pjsip/{loại}/{số}`, file `/var/lib/asterisk/astdb/astdb.sqlite3`, volume `astdb` — **phải sao lưu**). Bảng `ps_*` chỉ còn là bản lưu của dữ liệu cũ |
 | Mật khẩu máy lẻ | Không lưu mật khẩu gốc. Đối tượng `auth`: `auth_type=md5`, `realm=asterisk`, `md5_cred=md5(username:asterisk:mật_khẩu)`, `password` rỗng. Gateway tự tính md5_cred khi tạo/đổi mật khẩu. Đổi `default_realm` = phải tính lại mọi md5_cred |
 | Mật khẩu ARI | `ari.conf` lưu crypt SHA-512 (entrypoint băm từ `ARI_PASSWORD`). AMI buộc lưu dạng gốc (giới hạn của Asterisk) |
-| Lịch sử | Bảng `cdr` (các dòng cùng `linkedid` là 1 cuộc gọi) + `cdr_manager.conf` gửi mỗi CDR thành sự kiện AMI `Cdr` (thêm `LinkedID`, `Sequence`, `RecordingFile`) — Gateway lưu lịch sử từ sự kiện này |
+| Lịch sử | Bảng `cdr` (các dòng cùng `linkedid` là 1 cuộc gọi) + `cdr_manager.conf` gửi mỗi CDR thành sự kiện AMI `Cdr` (thêm `LinkedID`, `Sequence`, `RecordingFile`) — Gateway lưu lịch sử từ sự kiện này. **Bảo đảm không mất** (22/10/2026): container `cdr-shipper` đọc bảng `cdr` (user `cdr_shipper` chỉ SELECT, chỉ dùng trong cụm) và **đẩy** sang API của Gateway, tiến lên theo `acked_id`; Gateway chống trùng theo `(cluster_id, uniqueid, sequence)` = cùng khóa sự kiện AMI. Cụm không mở cổng mới, không đưa tài khoản DB cho Gateway. PostgreSQL trong cụm là "hộp thư đi" → giữ tại chỗ. Hợp đồng API: [docs/cdr-shipper.md](docs/cdr-shipper.md) |
 | Ghi âm | Mọi cuộc gọi đã nối máy (`MixMonitor` tùy chọn `b`, context `[sub-record]`), tắt bằng `RECORD_CALLS=no`. File WAV ở `/var/spool/asterisk/recording` (volume `recordings`) = thư mục ghi âm của ARI → Gateway liệt kê/tải/xóa qua ARI `/recordings/stored`. Tên file (không đuôi) lưu ở `cdr.recordingfile`. **Không tự xóa** file |
 
 ## 3. Trạng thái
@@ -47,6 +49,31 @@ Thoại **không** đi qua Gateway. Cần một cửa cho cả cuộc gọi thì
 - **Bước G1 — mở cho Gateway + WSS: bản tham chiếu đã làm xong và kiểm tra** (xem mục 4). Cần áp vào repo thật.
 - Tiếp theo nằm ở repo `pbx-gateway` (Bước 2: Server Management).
 - **Bước G2 — Gateway không dùng DB của cụm (05/10/2026): đã làm, thử trên cụm Docker cục bộ** (xem mục 4b). Chưa áp lên lab-02.
+
+## 4g. IVR — menu bấm phím (26/10/2026, đã thử trên Docker cục bộ)
+
+`extensions.conf`: nhãn `ivr` trong cùng extension `_X.` của `[from-internal]` (không nhảy context → CDR đúng), `Read()` 1 phím,
+đích bằng `Goto(from-internal,<đích>,1)` (đi lại đường tra cứu: group/IVR/máy lẻ), chặn vòng `IVR_HOPS > 5`; `_*46X.` ghi lời chào
+(`Authenticate` PIN, `Record`, nghe lại, 1 lưu / 2 ghi lại). `entrypoint.sh` tạo `/var/lib/asterisk/ivr`; `docker-compose.yml` volume
+`astivr`; `backup.sh`/`restore.sh` thêm `astivr.tar.gz` + `ivrs` trong MANIFEST (bản cũ không có thì bỏ qua). Trong dialplan,
+`;` trần là chú thích → giá trị có dấu chấm phẩy phải viết `\;`. Phía Gateway ĐÃ làm (26/10/2026): API `/servers/{code}/ivrs` (AMI DBPut/DBDel), Admin UI trang IVR — thử trên lab-04.
+
+## 4f. cdr-shipper — giao lịch sử không mất (22/10/2026, đã thử với Gateway giả)
+
+`cdr-shipper/` (Python + psycopg, chỉ gọi ra), service `cdr-shipper` trong `docker-compose.yml` **profile `shipper`, tắt mặc định**
+(bật bằng `COMPOSE_PROFILES=shipper` khi Gateway có API). `db/init/04-cdr-shipper-user.sh`: role chỉ `SELECT cdr` (bỏ qua nếu chưa đặt
+`CDR_SHIPPER_DB_PASSWORD`). Trạng thái `last_acked_id` trong volume `shipperstate` (ghi nguyên tử). Chỉ gửi tới `max(id)` đã ổn định
+≥ `CDR_SHIP_SAFETY_LAG` giây (tránh bỏ sót dòng commit muộn). `max(cdr.id)` < mốc (DB được khôi phục) → gửi lại từ đầu.
+Phía Gateway CHƯA làm: API `POST .../clusters/{id}/cdr` → `{"acked_id"}` (docs/cdr-shipper.md mục 2).
+
+## 4e. Sao lưu / khôi phục (22/10/2026, đã thử trên Docker cục bộ)
+
+[docs/sao-luu.md](docs/sao-luu.md). `scripts/backup.sh [đích]`: astdb (`sqlite3 .backup` + `integrity_check`; Dockerfile thêm gói
+`sqlite3`), `astconf` + `astkeys` (tar), `pg_dump -Fc`, `.env`, `MANIFEST` (số máy lẻ/group/cdr), `SHA256SUMS`; bản dở dang tên
+`.pbx-node-*.partial`; giữ `BACKUP_KEEP_DAYS`; ghi âm tùy chọn `BACKUP_RECORDINGS=yes` (rsync tăng dần). `scripts/restore.sh <bản>
+[--yes] [--parts ...]`: kiểm SHA → sao lưu hiện trạng vào `pre-restore/` → dừng Asterisk → ghi đè qua container tạm
+`--volumes-from` (tar giải nén ra thư mục tạm trước, hỏng thì giữ dữ liệu cũ) → `pg_restore --clean` → **trap luôn khởi động lại
+Asterisk**. Không tự khôi phục `.env` và ghi âm.
 
 ## 4d. Chịu tải (21/10/2026, đã thử với Asterisk 20.6 + SIPp)
 

@@ -20,6 +20,8 @@ services:
       POSTGRES_PASSWORD: ${DB_PASSWORD}
       GW_DB_USER: ${GW_DB_USER}           # user riêng cho PBX Gateway (db/init/03-gateway-user.sh)
       GW_DB_PASSWORD: ${GW_DB_PASSWORD}
+      CDR_SHIPPER_DB_USER: ${CDR_SHIPPER_DB_USER:-cdr_shipper}       # user chỉ đọc cdr cho cdr-shipper (04-cdr-shipper-user.sh)
+      CDR_SHIPPER_DB_PASSWORD: ${CDR_SHIPPER_DB_PASSWORD:-}
       TZ: ${TZ}
     volumes:
       - ./db/init:/docker-entrypoint-initdb.d:ro   # chỉ chạy ở lần khởi động đầu tiên
@@ -68,9 +70,38 @@ services:
       - astlogs:/var/log/asterisk
       - astdb:/var/lib/asterisk/astdb      # máy lẻ PJSIP (astdb.sqlite3) — PHẢI sao lưu
       - astconf:/etc/asterisk/gateway      # group (queues-groups.conf, Gateway sửa qua AMI UpdateConfig) — PHẢI sao lưu
+      - astivr:/var/lib/asterisk/ivr       # lời chào IVR ghi qua *46<số IVR> (menu IVR nằm trong astdb) — PHẢI sao lưu
       # File ghi âm. Mặc định volume "recordings". Đặt RECORDINGS_PATH trong .env = đường dẫn trên máy chủ
       # (vd /data/recordings, nên là ổ riêng) để ghi âm đầy ổ không kéo theo DB, astdb, log.
       - ${RECORDINGS_PATH:-recordings}:/var/spool/asterisk/recording
+
+  # Giao lịch sử cuộc gọi (bảng cdr) sang PBX Gateway, bảo đảm không mất khi Gateway rớt AMI (docs/cdr-shipper.md).
+  # Chỉ GỌI RA API của Gateway, không mở cổng nào. TẮT mặc định: bật khi Gateway đã có API nhận
+  #   (COMPOSE_PROFILES=shipper trong .env, hoặc docker compose --profile shipper up -d).
+  cdr-shipper:
+    build: ./cdr-shipper
+    image: pbx-cdr-shipper:1
+    container_name: pbx-cdr-shipper
+    profiles: [shipper]
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DB_HOST: db
+      DB_PORT: 5432
+      DB_NAME: ${DB_NAME}
+      CDR_SHIPPER_DB_USER: ${CDR_SHIPPER_DB_USER:-cdr_shipper}
+      CDR_SHIPPER_DB_PASSWORD: ${CDR_SHIPPER_DB_PASSWORD:-}
+      GATEWAY_CDR_URL: ${GATEWAY_CDR_URL:-}
+      CLUSTER_ID: ${CLUSTER_ID:-}
+      CDR_API_KEY: ${CDR_API_KEY:-}
+      CDR_SHIP_START: ${CDR_SHIP_START:-all}
+      GATEWAY_TLS_INSECURE: ${GATEWAY_TLS_INSECURE:-no}
+      TZ: ${TZ}
+    volumes:
+      - shipperstate:/state                # mốc đã giao (last_acked_id)
+    logging: *default-logging
 
 volumes:
   pgdata:
@@ -78,4 +109,6 @@ volumes:
   astlogs:
   astdb:
   astconf:
+  astivr:
   recordings:
+  shipperstate:

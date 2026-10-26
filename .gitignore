@@ -1,1 +1,3 @@
 .env
+# Bản sao lưu (chứa .env có mật khẩu, dữ liệu người dùng) - scripts/backup.sh
+backups/

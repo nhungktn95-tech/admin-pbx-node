@@ -45,6 +45,9 @@ pbx-node/
 ├─ docker-compose.cloud.yml    # chồng lên docker-compose.yml khi chạy trên cloud (docs/trien-khai-cloud.md)
 ├─ .env.cloud.example          # mẫu .env cho cloud
 ├─ cloud/                      # nginx (chỉ chuyển tiếp /ws), fail2ban (chặn dò mật khẩu SIP)
+├─ docs/ivr.md                 # IVR menu bấm phím: menu trong astdb (Gateway quản lý), lời chào ghi qua *46<số IVR>
+├─ cdr-shipper/                # giao bảng cdr sang Gateway, không mất khi rớt AMI (docs/cdr-shipper.md; tắt mặc định)
+├─ scripts/backup.sh, restore.sh     # sao lưu / khôi phục máy lẻ, group, lịch sử, chứng chỉ (docs/sao-luu.md)
 ├─ scripts/check-gateway-access.sh   # chạy trên máy Gateway để kiểm tra kết nối
 ├─ scripts/chuyen-may-le-sang-astdb.sh # chuyển máy lẻ từ bảng ps_* sang astdb (chạy một lần)
 ├─ scripts/chuyen-group-sang-queues-conf.sh # chuyển group từ bảng queues sang queues-groups.conf (chạy một lần)
@@ -387,13 +390,11 @@ Chi tiết và lý do từng thay đổi: [docs/chiu-tai.md](docs/chiu-tai.md).
 | Bước | Nội dung | Ở đâu |
 | --- | --- | --- |
 | 4 | Menu IVR bấm phím (DTMF), số gọi vào (DID); máy 9000 giả làm nhà mạng | pbx-node: `did_routes`, `ivr_menu`, `ivr_option`; context `from-trunk`, `ivr` |
-| 5 | Máy lẻ AI (201) chuyển cuộc gọi sang group 600 | pbx-node: context `from-ai`, `allow_transfer` |
 | — | Quản lý server, máy lẻ, group, thống kê qua API | repo `pbx-gateway` |
 | — | Gọi điện trên trình duyệt | repo `pbx-softphone-sdk` (máy lẻ có `webrtc=yes`, số như người dùng thường) |
 
 --- | --- | --- |
 | 4 | Menu IVR bấm phím (DTMF), số gọi vào (DID); máy 9000 giả làm nhà mạng | Bảng `did_routes`, `ivr_menu`, `ivr_option`; `func_odbc.conf`; context `from-trunk`, `ivr` |
-| 5 | Máy lẻ AI (201) chuyển cuộc gọi sang group 600 | Context `from-ai`, `allow_transfer` |
 | 6 | AMI: xem trạng thái, nghe sự kiện bấm phím | `manager.conf` |
 | 7 | pbx-agent (Spring Boot) tự động hóa bước 3–6 qua REST API | Service `agent` trong `docker-compose.yml` |
 

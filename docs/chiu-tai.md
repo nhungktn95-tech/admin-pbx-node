@@ -158,7 +158,7 @@ Ngưỡng nên ghi lại cho từng cấu hình máy: số kênh tối đa mà F
 | CDR `batch` (`cdr.conf`) | Gom CDR làm sự kiện AMI `Cdr` tới Gateway chậm và dồn cục, crash mất cả lô. PostgreSQL ghi vài trăm dòng/giây dễ dàng → chưa cần. Xem lại nếu thử tải thấy log CDR chậm |
 | `unanswered = yes` (nhiều dòng CDR mỗi cuộc gọi group) | Là yêu cầu lịch sử, không phải lỗi tải |
 | `System(rm -f ...)` khi gác máy | Mỗi lần tạo một tiến trình shell, tốn rất ít; Asterisk không có lệnh xóa file sẵn |
-| Luồng nhà mạng → IVR → AI (`from-trunk`, `from-ai`, trunk) | Là chức năng mới, cần thông tin nhà mạng/Media AI. Khi làm: mỗi cuộc ≥ 2 kênh (trunk + AI), lúc chuyển sang người thật 3–4 kênh → đo lại bằng thử tải |
+| Luồng nhà mạng → IVR (`from-trunk`, trunk) | Là chức năng mới, cần thông tin nhà mạng/Media AI. Khi làm: mỗi cuộc ≥ 2 kênh (trunk + AI), lúc chuyển sang người thật 3–4 kênh → đo lại bằng thử tải |
 | Nhiều node / SBC / dự phòng | Thay đổi kiến trúc, cần quyết định riêng |
 | Dải RTP lab | Xem mục 1 |
 
