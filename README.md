@@ -129,6 +129,8 @@ Kiểm tra: `pjsip show contacts` → thấy `101/sip:101@...` và `102/...` tr�
 
 **1.4 Gọi 101 → 102:** 102 đổ chuông, nghe máy, nói chuyện được.
 
+Gọi máy lẻ **chưa đăng ký** (offline) → nghe thông báo rồi tút tút 4 giây mới gác (SIP 480); máy **bận / từ chối** → tút tút 5 giây (486). Đổi thông báo bằng `EXT_UNAVAIL_PROMPT` trong `.env` (đường dẫn file không đuôi, vd `/var/lib/asterisk/ivr/may-le-offline` — chép .wav 8 kHz mono vào volume `astivr`; trống = câu tiếng Anh có sẵn `vm-nobodyavail`; `none` = chỉ tút tút) → `docker compose up -d`.
+
 **Chuyện gì xảy ra bên trong:**
 1. Softphone 101 gửi *REGISTER* kèm mật khẩu → Asterisk tra bảng `ps_auths` → đúng thì ghi nhận "101 đang ở IP này".
 2. 101 bấm 102 → gửi *INVITE* → Asterisk xem cột `context` của 101 trong `ps_endpoints` = `from-internal` → chạy dialplan `[from-internal]` trong `extensions.conf`, khớp mẫu `_[12]XX` → `Dial(PJSIP/102)`.
