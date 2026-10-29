@@ -71,6 +71,13 @@ chown -R asterisk:asterisk /etc/asterisk/gateway 2>/dev/null || true
 grep -q '^security.log' /etc/asterisk/logger.conf || sed -i '/^\[logfiles\]/a security.log => security' /etc/asterisk/logger.conf
 # Khi xoay vòng log ("logger rotate", chạy mỗi ngày ở bước 5): đổi tên file cũ thành <tên>.<thời điểm>, mở file mới.
 grep -q '^rotatestrategy' /etc/asterisk/logger.conf || sed -i '/^\[general\]/a rotatestrategy = timestamp' /etc/asterisk/logger.conf
+# Log phím bấm (DTMF) ra /var/log/asterisk/dtmf.log khi DTMF_LOG=yes (mặc định tắt). Phím RFC2833 đi trong RTP nên
+# không thấy bằng "pjsip set logger on"; mỗi phím 2 dòng "DTMF begin/end '<phím>' received on PJSIP/<máy>-...".
+# Xóa dòng cũ trước rồi mới thêm: restart container giữ logger.conf của lần chạy trước -> không bị trùng dòng.
+sed -i '/^dtmf\.log *=>/d' /etc/asterisk/logger.conf
+if [ "${DTMF_LOG:-no}" = "yes" ]; then
+  sed -i '/^\[logfiles\]/a dtmf.log => dtmf' /etc/asterisk/logger.conf
+fi
 
 # Thư mục ghi âm cuộc gọi (volume recordings) - cũng là thư mục ghi âm của ARI
 mkdir -p /var/spool/asterisk/recording

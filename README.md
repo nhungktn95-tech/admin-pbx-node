@@ -127,6 +127,8 @@ Kiểm tra: `pjsip show contacts` → thấy `101/sip:101@...` và `102/...` tr�
 
 **Thử phím bấm (DTMF):** bấm `*44` → nghe bíp, bấm vài số, kết thúc bằng `#` → Asterisk đọc lại các số vừa bấm. Im lặng rồi cúp máy = softphone chưa gửi phím theo RFC 2833 (Linphone/MicroSIP: chọn DTMF *RFC2833*; JsSIP: `sendDTMF(d, { transportType: 'RFC2833' })`).
 
+**Xem log phím bấm:** đặt `DTMF_LOG=yes` trong `.env` → `docker compose up -d` → `docker exec -it pbx-asterisk tail -f /var/log/asterisk/dtmf.log`. Mỗi phím 2 dòng `DTMF begin/end '<phím>' received on PJSIP/<máy>-...`. Bấm mà không có dòng nào = phím không tới tổng đài (softphone gửi SIP INFO/inband — xem bằng `pjsip set logger on`). Bật tạm không cần khởi động lại: `asterisk -rx "logger add channel dtmf.log dtmf"` (mất khi restart).
+
 **1.4 Gọi 101 → 102:** 102 đổ chuông, nghe máy, nói chuyện được.
 
 Gọi máy lẻ **chưa đăng ký** (offline) → nghe thông báo rồi tút tút 4 giây mới gác (SIP 480); máy **bận / từ chối** → tút tút 5 giây (486). Đổi thông báo bằng `EXT_UNAVAIL_PROMPT` trong `.env` (đường dẫn file không đuôi, vd `/var/lib/asterisk/ivr/may-le-offline` — chép .wav 8 kHz mono vào volume `astivr`; trống = câu tiếng Anh có sẵn `vm-nobodyavail`; `none` = chỉ tút tút) → `docker compose up -d`.
